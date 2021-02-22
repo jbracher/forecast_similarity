@@ -1,0 +1,225 @@
+---
+title: "Measuring the similarity of forecasts provided in a quantile format"
+output: pdf_document
+author: Johannes Bracher, \texttt{johannes.bracher@kit.edu}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+(Please excuse that this document contains a lot of hand waving. I can write things up more formally if this becomes of interest.)
+
+# Short version
+
+Consider two predictive distributions $F$ and $G$. Their Cramer von Mises distance is defined as
+$$
+\text{CvMD}(F, G) = \int_{-\infty}^\infty(F(x) - G(x))^2 dx
+$$
+where $F(x)$ and $G(x)$ denote the cumulative distribution functions. Now assume that for each of the distributions we only know $K$ quantiles at equally spaced levels $1/(K + 1), 2/(K + 1), \dots, K/(K + 1)$. Denote these quantiles by $q^F_1, \dots, q^F_K$ and $q^G_1, \dots, q^G_K$, respectively. We introduce the following notations:
+
+* $\mathbf{q}$ is a vector of length $2K$. It is obtained by pooling the $q^F_k, q^G_k, k = 1, \dots, K$ and ordering them in increasing order (ties can be ordered in an arbitrary manner).
+* $\mathbf{a}$ is a vector of length $2K$ containing the value $1$ wherever $\mathbf{q}$ contains a quantile of $F$ and $-1$ wherever it contains a value of $G$.
+* $\mathbf{b}$ is a vector of length $2K$ containing the absolute cumulative sums of $\mathbf{a}$, i.e. $b_k = \left|\sum_{i = 1}^k a_k\right|$.
+
+Then a quantile-based approximation of the Cramer von Mises distance is given by
+
+$$
+\text{CvMD}(F, G) \approx \frac{1}{K} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i).
+$$
+
+# Long version
+
+## Relationship between Cramer von Mises distance, CRPS and WIS
+
+Consider two predictive distributions $F$ and $G$ and an observed value $y$. In the following we use $F$ and $G$ also to denote the respective cumulative distribution functions (CDFs). The similarity of the definitions of the Cramer von Mises distance (CvMD)
+$$
+\text{CvMD}(F, G) = \int_{-\infty}^\infty(F(x) - G(x))^2 dx
+$$
+and the CRPS
+$$
+\text{CRPS}(F, y) = \int_{-\infty}^\infty(F(x) - \mathbf{1}(x \geq y))^2 dx
+$$
+is obvious. Indeed, we can interpret $\mathbf{1}(x \geq y)$ as the CDF of a random variable which always takes the value $y$. In a sense the CRPS is thus a special case of the CvMD. The two integrals are illustrated in the figure below.
+
+```{r, echo=FALSE, fig.height=5, fig.width=8}
+grid_x <- seq(from = 3, to = 15, by = 0.1)
+
+mu_F <- 9
+sigma_F <- 1.8
+p_F <- pnorm(grid_x, mu_F, sigma_F)
+
+mu_G <- 10
+sigma_G <- 1
+p_G <- pnorm(grid_x, mu_G, sigma_G)
+
+y <- mu_G
+p_y <- as.numeric(grid_x > y)
+
+par(mfrow = c(2, 2))
+
+plot(grid_x, p_F, type = "l", xlab = "x", ylab = "CDF", col = "red")
+lines(grid_x, p_G, col = "blue")
+legend("topleft", c("F", "G"), col = c("red", "blue"), lty = 1)
+
+plot(grid_x, (p_F - p_G)^2, type = "l", xlab = "x", ylab = "(F(x) - G(x))^2")
+polygon(grid_x, (p_F - p_G)^2, col = "lightblue")
+legend("topleft", "CvMD", col = "lightblue", pch = 15)
+
+plot(grid_x, p_F, type = "l", xlab = "x", ylab = "CDF", col = "red")
+lines(grid_x, p_y, col = "black")
+legend("topleft", c("F", "1(x >= y)"), col = c("red", "black"), lty = 1)
+
+
+plot(grid_x, (p_F - p_y)^2, type = "l", xlab = "x", ylab = "(F(x) - 1(y >= x))^2")
+polygon(grid_x, (p_F - p_y)^2, col = "lightblue")
+legend("topleft", "CRPS", col = "lightblue", pch = 15)
+
+```
+
+Now assume $F$ is provided in a quantile format, with $K$ quantiles at equally spaced levels $1/(K + 1), 2/(K + 1), \dots, K/(K + 1)$. Denote these quantiles by $q^F_k, k = 1, ..., K$. The weighted interval score, or mean linear quantile score
+$$
+\text{WIS}(F, y) = \frac{2}{K} \times \sum_{k = 1}^K \{\mathbf{1}(y \leq q^F_k)\} \times (q^F_k - y) \approx \text{CRPS}(F, y)
+$$
+is a commonly used quantile-based approximation of the CRPS. We start by getting an intuition of what this approximation does and why it works. For the following we use $K = 9$ for illustration.
+
+```{r, echo=FALSE, fig.width=9, fig.height=9}
+p <- 1:9/10
+q_F <- qnorm(p, mu_F, sigma_F)
+
+q_F_plot <- c(head(q_F, 1) - 3, q_F, tail(q_F, 1) + 3)
+
+par(mfrow = c(3, 3))
+for(i in 1:9){
+  plot(q_F_plot, c(0, p, 0.9), xlab = "x", ylab = "CDF", type = "s", ylim = 0:1, col = "red", lwd = 2,
+       main = paste("k =", i))
+  abline(h = 1:10/10, col = "lightgrey", lty = 3); abline(v = q_F, col = "lightgrey", lty = 3)
+
+  lines(grid_x, p_y, col = "black", lwd = 2)
+  rect(q_F[i], q_F[i] >= y, y, p[i], col = "lightblue", border = "lightblue", density = 12)
+  legend("topleft", c("F", "1(x >= y)"), col = c("red", "black"), lty = 1)
+
+}
+```
+
+The above figure shows rectangles representing the $K = 9$ terms which are averaged to obtain the WIS. Note that in the above figure the black line for $\mathbf{1}(x \geq y)$ is a "full" CDF in the sense that it reaches the value one. This is a problem if we want to translate things to a more general setting with a step function with jumps at $K$ quantiles of a distribution $H$. In this case, the right horizontal part of the black line would need to be at $K/(K + 1) = 0.9$ instead of 1, as is the case for the red line. Fortunately we can just shift down everything that happens right of $y$ by $1/(K + 1) = 0.1$ and maintain a nice geometrical intuition (maybe even a nicer one):
+
+```{r, echo=FALSE, fig.width=9, fig.height=3}
+par(mfrow = c(1, 2))
+for(i in 8:9){
+  plot(q_F_plot, c(0, p, 0.9), xlab = "x", ylab = "CDF", type = "s", ylim = 0:1, col = "red", lwd = 2,
+       main = paste("k =", i))
+  abline(h = 1:10/10, col = "lightgrey", lty = 3); abline(v = q_F, col = "lightgrey", lty = 3)
+  lines(grid_x, 0.9*p_y, col = "black", lwd = 2)
+  rect(q_F[i], (q_F[i] >= y) - 0.1, y, p[i] - 0.1, col = "lightblue", border = "lightblue", density = 12)
+  legend("topleft", c("F", "H"), col = c("red", "black"), lty = 1)
+
+}
+```
+
+The WIS is given by the average of the size of the $K$ light blue boxes. To get a better understanding of what these represent we slice up the boxes vertically at the $K$ quantiles $q^F_1, \dots, q^F_K$ of $F$ and horizontally at the quantile levels $1/(K + 1), \dots K/(K + 1)$ (dotted lines in plots). Then obviously all of the resulting small boxes are the same height $1/(K + 1)$ and we have the following (specific to the example shown in the plot):
+
+* One box of width $(q^F_2 - q^F_1)$ (the one from $k = 1$)
+* Three boxes of width $(q^F_3 - q^F_2)$ (one from $k = 1$ and two from $k = 2$)
+* Six boxes of width $(q^F_4 - q^F_3)$ (one from $k = 1$, two from $k = 2$ and three from $k = 3$)
+
+More generally, for segments where $|F(x) - H(x)| = k/(K + 1)$ we have $\sum_{i = 1}^k i = k(k + 1)/2$ boxes. This means that we can re-write the WIS as
+$$
+\text{WIS}(F, y) = \frac{2}{K} \times \sum_{k = 1}^K \underbrace{\mu(\{x: |F(X) - H(x)| = k/(K + 1)\})}_{\text{width of boxes}} \times \underbrace{\frac{1}{K + 1}}_{\text{height of boxes}} \times \underbrace{\frac{k(k + 1)}{2}}_{\text{number of boxes with respective width}},    \ \ \ \ \ \ \ \ \ \ \ \ \ \ \       (1)
+$$
+$$
+= \sum_{k = 1}^K \mu(\{x: |F(x) - H(x)| = k/(K + 1)\})  \times \underbrace{\frac{k}{K} \times \frac{k + 1}{K + 1}}_{\approx (F(x) - H(x))^2}
+$$
+where $\mu(\{x: |F(x) - H(x)| = 1/k\})$ is the total length of the segments where $|F(x) - H(x)| = 1/k$. This makes it clear that for large $K$ the approximation
+$$
+\text{WIS}(F, y) \approx \int_{-\infty}^\infty (F(x) - H(x))^2 dx
+$$
+indeed holds with 
+$$
+H(X) = \begin{cases} 0 \text{ if } x < y\\ 0.9 \text{ if } x \geq y. \end{cases}
+$$
+
+## Extension to comparison of two predictive distributions
+
+The approximation (1) is not limited to CDFs like the one of $H$ with just one step (i.e. $H$ can only take one value $y$). After all, wen never make use of the restriction that $H$ has just one step. Indeed, we can apply it to approximate the Cramer von Mises distance of any pair of distributions $F$ and $G$:
+$$
+\text{CvMD}(F, G) \approx \sum_{k = 1}^K \mu(\{x: |F(x) - H(x)| = k/(K + 1)\})  \times \frac{k}{K} \times \frac{k + 1}{K + 1}
+$$
+This expression could be evaluated directly (or at least approximated very closely) using a grid for the $x$ values. However, a simpler way to compute this exists (writing down why it works is tedious and I need to clarify some details, but I've checked in numerous examples and it does work). Denote by $\mathbf{q}$ a vector of length $2K$ containing all quantiles $q^F_1, \dots, q_F^K$ of $F$ and $q^G_1, \dots, q_G^K$ in increasing order; and denote by $\mathbf{a}$ a vector of length $2K$ with $1$ wherever the corresponding entry of $\mathbf{q}$ comes from the quantiles of $F$ and $-1$ if it comes from the quantiles of $G$. Then the above approximation can also be written as:
+
+$$
+\text{CvMD}(F, G) \approx \frac{1}{K} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i),
+$$
+where
+$$
+b_k = \left|\sum_{i = 1}^k a_k\right|.
+$$
+
+Here is an R function to compute this approximation of the CvMD:
+
+```{r}
+# q_F: vector containing the (1:K)/(K + 1) quantiles of F
+# q_G: vector containing the (1:K)/(K + 1) quantiles of G
+approx_cvmd <- function(q_F, q_G){
+  
+  # compute quantile levels from length of provided quantile vectors:
+  K <- length(q_F)
+  if(length(q_G) != K) stop("q_F and q_G need to be of the same length")
+  p <- (1:K)/(K + 1) # function assumes that the quantile levels are equally spaced
+  
+  # pool quantiles:
+  q0 <- c(q_F, q_G)
+  # vector of grouping variables, with 1 for values belonging to F, -1 for values 
+  # belonging to G
+  a0 <- c(rep(1, length(q_F)), rep(-1, length(q_G)))
+  
+  # re-order both vectors:
+  q <- q0[order(q0)]
+  a <- a0[order(q0)]
+  # and compute "how many quantiles ahead" F or G is at a given segment:
+  b <- cumsum(a)
+  
+  # compute the lengths of segments defined by sorted quantiles:
+  diffs <- c(diff(q), 0) # zero necessary for indexing below, but we could put 
+  # anything (gets multiplied w zero)
+  
+  step <- diff(p)[1] # this is 1/K
+  cvm <- sum(diffs*step*abs(b)*(abs(b) + 1))/length(p) # using mean does not work 
+  # as we then divide by 2K... not entirely sure
+  
+  return(mean(cvm))
+}
+```
+
+What is nice about this measure is that similarly to the WIS it can be decomposed into various components. We could for instance define decompositions according to
+
+* whether $F(X)$ or $G(x)$ is larger to spot if certain models systematically predict larger values.
+* whether the quantiles of $F$ or $G$ are more dispersed (not yet totally clear how to do that, but pretty sure it works).
+
+These decompositions would also remain interpretable when aggregating across many forecasts. Also the measure preserves some desirable properties of the CvMD:
+
+* If $G$ is just an additively shifted version of $F$ the CvMD corresponds to the (absolute value of the) shift. This means that the measure can again be interpreted on the natural scale of the data as a sort of generalized absolute difference.
+* It is symmetric (which is not the case for e.g. the Kullback Leibler divergence).
+
+
+## Example
+
+As an example we apply the approximation to the distributions $F$ and $G$ already used in the figures above. They are given by $N(9, 1.8)$ for $F$ and $N(10, 1)$ for $G$. The figure below shows the value of the approximation with different values for $K$, with the "exact" value obtained by numerical integration via a very fine grid (dashed line).
+
+```{r, echo=FALSE}
+exact_cvmd <- 0.1*sum((p_F - p_G)^2)
+
+values_K <- 1:10*10
+values_approx_cvmd <- numeric(length(values_K))
+
+for(i in seq_along(values_K)){
+  p_temp <- (1:(values_K[i] - 1))/values_K[i]
+  q_F_temp <- qnorm(p_temp, mu_F, sigma_F)
+  q_G_temp <- qnorm(p_temp, mu_G, sigma_G)
+  values_approx_cvmd[i] <- approx_cvmd(q_F = q_F_temp, q_G = q_G_temp)
+}
+
+plot(values_K, values_approx_cvmd, ylim = c(0, 1), xlab = "K", ylab = "CvMD", pch = 15, type = "b")
+abline(h = exact_cvmd, lty = 2)
+legend("topright", c("approximation", "result from numerical integration"), pch = c(15, NA), lty = c(1, 2))
+```
