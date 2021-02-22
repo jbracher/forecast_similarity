@@ -20,13 +20,20 @@ where $F(x)$ and $G(x)$ denote the cumulative distribution functions. Now assume
 
 * $\mathbf{q}$ is a vector of length $2K$. It is obtained by pooling the $q^F_k, q^G_k, k = 1, \dots, K$ and ordering them in increasing order (ties can be ordered in an arbitrary manner).
 * $\mathbf{a}$ is a vector of length $2K$ containing the value $1$ wherever $\mathbf{q}$ contains a quantile of $F$ and $-1$ wherever it contains a value of $G$.
-* $\mathbf{b}$ is a vector of length $2K$ containing the absolute cumulative sums of $\mathbf{a}$, i.e. $b_k = \left|\sum_{i = 1}^k a_k\right|$.
+* $\mathbf{b}$ is a vector of length $2K$ containing the absolute cumulative sums of $\mathbf{a}$, i.e. $b_i = \left|\sum_{j = 1}^i a_j\right|$.
 
-Then a quantile-based approximation of the Cramer von Mises distance is given by
+Then a quantile-based approximation of the Cramer distance is given by
 
 $$
-\text{CD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i).
+\text{CD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{i = 1}^{2K - 1} b_i(b_i + 1)(q_{i + 1} - q_i).
 $$
+
+Actually I think that the approximation for small $K$ is better if we use
+
+$$
+\text{CD}(F, G) \approx \frac{1}{(K + 1)^2} \times \sum_{i = 1}^{2K - 1} b_i^2(q_{i + 1} - q_i),
+$$
+which can be motivated much more directly, too (without the detour of the WIS approximation). It's just a bit further from the WIS-type approximation, but I don't see why that would be a problem.
 
 # Long version
 
@@ -193,8 +200,8 @@ approx_cd <- function(q_F, q_G){
   diffs_q <- c(diff(q), 0) # zero necessary for indexing below, but we could put 
   # anything (gets multiplied w zero)
 
-  # and approximave CD
-  cvm <- sum(diffs_q*b*(b + 1))/K/(K + 1)
+  # and approximate CD
+  cvm <- sum(diffs_q*b*(b + 1))/(K + 1)/(K)
   
   return(mean(cvm))
 }
@@ -206,20 +213,20 @@ As an example we apply the approximation to the distributions $F$ and $G$ alread
 ```{r, echo=TRUE}
 
 # define distributions:
-mu_F <- 9
+mu_F <- 14
 sigma_F <- 1.8
 
 mu_G <- 10
-sigma_G <- 1
+sigma_G <- 2.5
 
 # simple numerical integration using grid:
-grid_x <- seq(from = 3, to = 15, by = 0.1)
+grid_x <- seq(from = -10, to = 25, by = 0.1)
 p_F <- pnorm(grid_x, mu_F, sigma_F)
 p_G <- pnorm(grid_x, mu_G, sigma_G)
 exact_cd <- 0.1*sum((p_F - p_G)^2)
 
 # values of K to check:
-values_K <- 1:10*10
+values_K <- c(10, 20, 50, 100, 200, 500, 1000, 2000)
 
 # vector to store results:
 values_approx_cd <- numeric(length(values_K))
@@ -233,8 +240,8 @@ for(i in seq_along(values_K)){
 }
 
 # plot:
-plot(values_K, values_approx_cd, ylim = c(0, 1), xlab = "K", ylab = "CD",
-     pch = 15, type = "b")
+plot(values_K, values_approx_cd, ylim = c(0, 5), xlab = "K", ylab = "CD",
+     pch = 15, type = "b", log = "x")
 abline(h = exact_cd, lty = 2)
 legend("topright", c("approximation", "result from numerical integration"), 
        pch = c(15, NA), lty = c(1, 2))
