@@ -25,7 +25,7 @@ where $F(x)$ and $G(x)$ denote the cumulative distribution functions. Now assume
 Then a quantile-based approximation of the Cramer von Mises distance is given by
 
 $$
-\text{CvMD}(F, G) \approx \frac{1}{K} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i).
+\text{CvMD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i).
 $$
 
 # Long version
@@ -125,7 +125,7 @@ The WIS is given by the average of the size of the $K$ light blue boxes. To get 
 
 More generally, for segments where $|F(x) - H(x)| = k/(K + 1)$ we have $\sum_{i = 1}^k i = k(k + 1)/2$ boxes. This means that we can re-write the WIS as
 $$
-\text{WIS}(F, y) = \frac{2}{K} \times \sum_{k = 1}^K \underbrace{\mu(\{x: |F(X) - H(x)| = k/(K + 1)\})}_{\text{width of boxes}} \times \underbrace{\frac{1}{K + 1}}_{\text{height of boxes}} \times \underbrace{\frac{k(k + 1)}{2}}_{\text{number of boxes with respective width}},    \ \ \ \ \ \ \ \ \ \ \ \ \ \ \       (1)
+\text{WIS}(F, y) = \frac{2}{K} \times \sum_{k = 1}^K \underbrace{\mu(\{x: |F(X) - H(x)| = k/(K + 1)\})}_{\text{width of boxes}} \times \underbrace{\frac{1}{K + 1}}_{\text{height of boxes}} \times \underbrace{\frac{k(k + 1)}{2}}_{\text{number of boxes with respective width}},    \ \ \ \ \ \ \ \ \ \\       (1)
 $$
 $$
 = \sum_{k = 1}^K \mu(\{x: |F(x) - H(x)| = k/(K + 1)\})  \times \underbrace{\frac{k}{K} \times \frac{k + 1}{K + 1}}_{\approx (F(x) - H(x))^2}
@@ -141,21 +141,31 @@ $$
 
 ## Extension to comparison of two predictive distributions
 
-The approximation (1) is not limited to CDFs like the one of $H$ with just one step (i.e. $H$ can only take one value $y$). After all, wen never make use of the restriction that $H$ has just one step. Indeed, we can apply it to approximate the Cramer von Mises distance of any pair of distributions $F$ and $G$:
+Formulation (1) and its motivation are sufficiently general that they can also apply it to two ``actual'' CDFs which both have more than just one jump. Indeed, we can (1) it to approximate the Cramer von Mises distance of any pair of distributions $F$ and $G$:
 $$
 \text{CvMD}(F, G) \approx \sum_{k = 1}^K \mu(\{x: |F(x) - H(x)| = k/(K + 1)\})  \times \frac{k}{K} \times \frac{k + 1}{K + 1}
 $$
 This expression could be evaluated directly (or at least approximated very closely) using a grid for the $x$ values. However, a simpler way to compute this exists (writing down why it works is tedious and I need to clarify some details, but I've checked in numerous examples and it does work). Denote by $\mathbf{q}$ a vector of length $2K$ containing all quantiles $q^F_1, \dots, q_F^K$ of $F$ and $q^G_1, \dots, q_G^K$ in increasing order; and denote by $\mathbf{a}$ a vector of length $2K$ with $1$ wherever the corresponding entry of $\mathbf{q}$ comes from the quantiles of $F$ and $-1$ if it comes from the quantiles of $G$. Then the above approximation can also be written as:
 
 $$
-\text{CvMD}(F, G) \approx \frac{1}{K} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i),
+\text{CvMD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i),
 $$
 where
 $$
 b_k = \left|\sum_{i = 1}^k a_k\right|.
 $$
+Some advantages of this measure:
 
-Here is an R function to compute this approximation of the CvMD:
+* Can be computed quickly for a large number of pairs of forecasts.
+* Follows the same philosophy as the WIS.
+* Similarly to the WIS it can be decomposed into various components (e.g. according to whether $F(X)$ or $G(x)$ predicts larger values or whether one of them is more dispersed).
+* If $G$ is just an additively shifted version of $F$ the CvMD corresponds to the (absolute value of the) shift. This means that the measure can again be interpreted on the natural scale of the data as a sort of generalized absolute difference.
+
+\newpage
+
+## Example
+
+This is a simple R function to compute the approximation of the CvMD:
 
 ```{r}
 # q_F: vector containing the (1:K)/(K + 1) quantiles of F
@@ -177,49 +187,55 @@ approx_cvmd <- function(q_F, q_G){
   q <- q0[order(q0)]
   a <- a0[order(q0)]
   # and compute "how many quantiles ahead" F or G is at a given segment:
-  b <- cumsum(a)
+  b <- abs(cumsum(a))
   
   # compute the lengths of segments defined by sorted quantiles:
-  diffs <- c(diff(q), 0) # zero necessary for indexing below, but we could put 
+  diffs_q <- c(diff(q), 0) # zero necessary for indexing below, but we could put 
   # anything (gets multiplied w zero)
-  
-  step <- diff(p)[1] # this is 1/K
-  cvm <- sum(diffs*step*abs(b)*(abs(b) + 1))/length(p) # using mean does not work 
-  # as we then divide by 2K... not entirely sure
+
+  # and approximave CvMD
+  cvm <- sum(diffs_q*b*(b + 1))/K/(K + 1)
   
   return(mean(cvm))
 }
 ```
 
-What is nice about this measure is that similarly to the WIS it can be decomposed into various components. We could for instance define decompositions according to
-
-* whether $F(X)$ or $G(x)$ is larger to spot if certain models systematically predict larger values.
-* whether the quantiles of $F$ or $G$ are more dispersed (not yet totally clear how to do that, but pretty sure it works).
-
-These decompositions would also remain interpretable when aggregating across many forecasts. Also the measure preserves some desirable properties of the CvMD:
-
-* If $G$ is just an additively shifted version of $F$ the CvMD corresponds to the (absolute value of the) shift. This means that the measure can again be interpreted on the natural scale of the data as a sort of generalized absolute difference.
-* It is symmetric (which is not the case for e.g. the Kullback Leibler divergence).
-
-
-## Example
 
 As an example we apply the approximation to the distributions $F$ and $G$ already used in the figures above. They are given by $N(9, 1.8)$ for $F$ and $N(10, 1)$ for $G$. The figure below shows the value of the approximation with different values for $K$, with the "exact" value obtained by numerical integration via a very fine grid (dashed line).
 
-```{r, echo=FALSE}
+```{r, echo=TRUE}
+
+# define distributions:
+mu_F <- 9
+sigma_F <- 1.8
+
+mu_G <- 10
+sigma_G <- 1
+
+# simple numerical integration using grid:
+grid_x <- seq(from = 3, to = 15, by = 0.1)
+p_F <- pnorm(grid_x, mu_F, sigma_F)
+p_G <- pnorm(grid_x, mu_G, sigma_G)
 exact_cvmd <- 0.1*sum((p_F - p_G)^2)
 
+# values of K to check:
 values_K <- 1:10*10
+
+# vector to store results:
 values_approx_cvmd <- numeric(length(values_K))
 
+# apply approximation for each_
 for(i in seq_along(values_K)){
-  p_temp <- (1:(values_K[i] - 1))/values_K[i]
-  q_F_temp <- qnorm(p_temp, mu_F, sigma_F)
-  q_G_temp <- qnorm(p_temp, mu_G, sigma_G)
-  values_approx_cvmd[i] <- approx_cvmd(q_F = q_F_temp, q_G = q_G_temp)
+  p_temp <- (1:(values_K[i] - 1))/values_K[i] # quantile levels
+  q_F_temp <- qnorm(p_temp, mu_F, sigma_F) # quantiles of F
+  q_G_temp <- qnorm(p_temp, mu_G, sigma_G) # quantiles of G
+  values_approx_cvmd[i] <- approx_cvmd(q_F = q_F_temp, q_G = q_G_temp) # approximation
 }
 
-plot(values_K, values_approx_cvmd, ylim = c(0, 1), xlab = "K", ylab = "CvMD", pch = 15, type = "b")
+# plot:
+plot(values_K, values_approx_cvmd, ylim = c(0, 1), xlab = "K", ylab = "CvMD",
+     pch = 15, type = "b")
 abline(h = exact_cvmd, lty = 2)
-legend("topright", c("approximation", "result from numerical integration"), pch = c(15, NA), lty = c(1, 2))
+legend("topright", c("approximation", "result from numerical integration"), 
+       pch = c(15, NA), lty = c(1, 2))
 ```
