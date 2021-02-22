@@ -12,9 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Short version
 
-Consider two predictive distributions $F$ and $G$. Their Cramer von Mises distance is defined as
+Consider two predictive distributions $F$ and $G$. Their Cramer distance is defined as
 $$
-\text{CvMD}(F, G) = \int_{-\infty}^\infty(F(x) - G(x))^2 dx
+\text{CD}(F, G) = \int_{-\infty}^\infty(F(x) - G(x))^2 dx
 $$
 where $F(x)$ and $G(x)$ denote the cumulative distribution functions. Now assume that for each of the distributions we only know $K$ quantiles at equally spaced levels $1/(K + 1), 2/(K + 1), \dots, K/(K + 1)$. Denote these quantiles by $q^F_1, \dots, q^F_K$ and $q^G_1, \dots, q^G_K$, respectively. We introduce the following notations:
 
@@ -25,22 +25,22 @@ where $F(x)$ and $G(x)$ denote the cumulative distribution functions. Now assume
 Then a quantile-based approximation of the Cramer von Mises distance is given by
 
 $$
-\text{CvMD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i).
+\text{CD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i).
 $$
 
 # Long version
 
 ## Relationship between Cramer von Mises distance, CRPS and WIS
 
-Consider two predictive distributions $F$ and $G$ and an observed value $y$. In the following we use $F$ and $G$ also to denote the respective cumulative distribution functions (CDFs). The similarity of the definitions of the Cramer von Mises distance (CvMD)
+Consider two predictive distributions $F$ and $G$ and an observed value $y$. In the following we use $F$ and $G$ also to denote the respective cumulative distribution functions (CDFs). The similarity of the definitions of the Cramer von Mises distance (CD)
 $$
-\text{CvMD}(F, G) = \int_{-\infty}^\infty(F(x) - G(x))^2 dx
+\text{CD}(F, G) = \int_{-\infty}^\infty(F(x) - G(x))^2 dx
 $$
 and the CRPS
 $$
 \text{CRPS}(F, y) = \int_{-\infty}^\infty(F(x) - \mathbf{1}(x \geq y))^2 dx
 $$
-is obvious. Indeed, we can interpret $\mathbf{1}(x \geq y)$ as the CDF of a random variable which always takes the value $y$. In a sense the CRPS is thus a special case of the CvMD. The two integrals are illustrated in the figure below.
+is obvious. Indeed, we can interpret $\mathbf{1}(x \geq y)$ as the CDF of a random variable which always takes the value $y$. In a sense the CRPS is thus a special case of the CD. The two integrals are illustrated in the figure below.
 
 ```{r, echo=FALSE, fig.height=5, fig.width=8}
 grid_x <- seq(from = 3, to = 15, by = 0.1)
@@ -64,7 +64,7 @@ legend("topleft", c("F", "G"), col = c("red", "blue"), lty = 1)
 
 plot(grid_x, (p_F - p_G)^2, type = "l", xlab = "x", ylab = "(F(x) - G(x))^2")
 polygon(grid_x, (p_F - p_G)^2, col = "lightblue")
-legend("topleft", "CvMD", col = "lightblue", pch = 15)
+legend("topleft", "CD", col = "lightblue", pch = 15)
 
 plot(grid_x, p_F, type = "l", xlab = "x", ylab = "CDF", col = "red")
 lines(grid_x, p_y, col = "black")
@@ -136,19 +136,19 @@ $$
 $$
 indeed holds with 
 $$
-H(X) = \begin{cases} 0 \text{ if } x < y\\ 0.9 \text{ if } x \geq y. \end{cases}
+H(X) = \begin{cases} 0 \text{ if } x < y\\ K/(K + 1) \text{ if } x \geq y. \end{cases}
 $$
 
 ## Extension to comparison of two predictive distributions
 
 Formulation (1) and its motivation are sufficiently general that they can also apply it to two ``actual'' CDFs which both have more than just one jump. Indeed, we can (1) it to approximate the Cramer von Mises distance of any pair of distributions $F$ and $G$:
 $$
-\text{CvMD}(F, G) \approx \sum_{k = 1}^K \mu(\{x: |F(x) - H(x)| = k/(K + 1)\})  \times \frac{k}{K} \times \frac{k + 1}{K + 1}
+\text{CD}(F, G) \approx \sum_{k = 1}^K \mu(\{x: |F(x) - H(x)| = k/(K + 1)\})  \times \frac{k}{K} \times \frac{k + 1}{K + 1}
 $$
 This expression could be evaluated directly (or at least approximated very closely) using a grid for the $x$ values. However, a simpler way to compute this exists (writing down why it works is tedious and I need to clarify some details, but I've checked in numerous examples and it does work). Denote by $\mathbf{q}$ a vector of length $2K$ containing all quantiles $q^F_1, \dots, q_F^K$ of $F$ and $q^G_1, \dots, q_G^K$ in increasing order; and denote by $\mathbf{a}$ a vector of length $2K$ with $1$ wherever the corresponding entry of $\mathbf{q}$ comes from the quantiles of $F$ and $-1$ if it comes from the quantiles of $G$. Then the above approximation can also be written as:
 
 $$
-\text{CvMD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i),
+\text{CD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i),
 $$
 where
 $$
@@ -159,18 +159,18 @@ Some advantages of this measure:
 * Can be computed quickly for a large number of pairs of forecasts.
 * Follows the same philosophy as the WIS.
 * Similarly to the WIS it can be decomposed into various components (e.g. according to whether $F(X)$ or $G(x)$ predicts larger values or whether one of them is more dispersed).
-* If $G$ is just an additively shifted version of $F$ the CvMD corresponds to the (absolute value of the) shift. This means that the measure can again be interpreted on the natural scale of the data as a sort of generalized absolute difference.
+* If $G$ is just an additively shifted version of $F$ the CD corresponds to the (absolute value of the) shift. This means that the measure can again be interpreted on the natural scale of the data as a sort of generalized absolute difference.
 
 \newpage
 
 ## Example
 
-This is a simple R function to compute the approximation of the CvMD:
+This is a simple R function to compute the approximation of the CD:
 
 ```{r}
 # q_F: vector containing the (1:K)/(K + 1) quantiles of F
 # q_G: vector containing the (1:K)/(K + 1) quantiles of G
-approx_cvmd <- function(q_F, q_G){
+approx_cd <- function(q_F, q_G){
   
   # compute quantile levels from length of provided quantile vectors:
   K <- length(q_F)
@@ -193,7 +193,7 @@ approx_cvmd <- function(q_F, q_G){
   diffs_q <- c(diff(q), 0) # zero necessary for indexing below, but we could put 
   # anything (gets multiplied w zero)
 
-  # and approximave CvMD
+  # and approximave CD
   cvm <- sum(diffs_q*b*(b + 1))/K/(K + 1)
   
   return(mean(cvm))
@@ -216,26 +216,31 @@ sigma_G <- 1
 grid_x <- seq(from = 3, to = 15, by = 0.1)
 p_F <- pnorm(grid_x, mu_F, sigma_F)
 p_G <- pnorm(grid_x, mu_G, sigma_G)
-exact_cvmd <- 0.1*sum((p_F - p_G)^2)
+exact_cd <- 0.1*sum((p_F - p_G)^2)
 
 # values of K to check:
 values_K <- 1:10*10
 
 # vector to store results:
-values_approx_cvmd <- numeric(length(values_K))
+values_approx_cd <- numeric(length(values_K))
 
 # apply approximation for each_
 for(i in seq_along(values_K)){
   p_temp <- (1:(values_K[i] - 1))/values_K[i] # quantile levels
   q_F_temp <- qnorm(p_temp, mu_F, sigma_F) # quantiles of F
   q_G_temp <- qnorm(p_temp, mu_G, sigma_G) # quantiles of G
-  values_approx_cvmd[i] <- approx_cvmd(q_F = q_F_temp, q_G = q_G_temp) # approximation
+  values_approx_cd[i] <- approx_cd(q_F = q_F_temp, q_G = q_G_temp) # approximation
 }
 
 # plot:
-plot(values_K, values_approx_cvmd, ylim = c(0, 1), xlab = "K", ylab = "CvMD",
+plot(values_K, values_approx_cd, ylim = c(0, 1), xlab = "K", ylab = "CD",
      pch = 15, type = "b")
-abline(h = exact_cvmd, lty = 2)
+abline(h = exact_cd, lty = 2)
 legend("topright", c("approximation", "result from numerical integration"), 
        pch = c(15, NA), lty = c(1, 2))
 ```
+
+## Useful links
+
+* \url{http://pages.stat.wisc.edu/~wahba/stat860public/pdf4/Energy/EnergyDistance10.1002-wics.1375.pdf}
+* \url{https://en.wikipedia.org/wiki/Energy_distance]}
