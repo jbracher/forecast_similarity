@@ -12,42 +12,274 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Short version
 
-Consider two predictive distributions $F$ and $G$. Their Cramer distance is defined as
+Consider two predictive distributions $F$ and $G$. Their *Cramer distance* or *integrated quadratic distance*  is defined as
 $$
 \text{CD}(F, G) = \int_{-\infty}^\infty(F(x) - G(x))^2 dx
 $$
-where $F(x)$ and $G(x)$ denote the cumulative distribution functions. Now assume that for each of the distributions we only know $K$ quantiles at equally spaced levels $1/(K + 1), 2/(K + 1), \dots, K/(K + 1)$. Denote these quantiles by $q^F_1, \dots, q^F_K$ and $q^G_1, \dots, q^G_K$, respectively. We introduce the following notations:
+where $F(x)$ and $G(x)$ denote the cumulative distribution functions. The Cramer distance is the divergence associated with the continuous ranked probability score (Thorarinsdottir 2013, Gneiting and Raftery 2007)
+$$
+\text{CRPS}(F, y) = \int_{-\infty}^\infty(F(x) - \mathbf{1}(x \geq y))^2 dx,
+$$
+where $y$ denotes the observed value. Indeed, it is a generalization of the CRPS in the sense that it simplifies to the CRPS if one out of $F$ and $G$ is a one-point distribution. The Cramer distance is commonly used to measure the similarity of forecast distributions (see Richardson et al 2020 for a recent application).  To evaluate it using samples form the distributions $F$ and $G$ one can use the alternative formulation
+\begin{equation}
+\text{CD}(F, G) = \mathbb{E}_{F, G}|x - y| - 0.5 \left[\mathbb{E}_F|x - x'| + \mathbb{E}_G|y - y'| \right], \label{eq:formulation_expectations}
+\end{equation}
+where $x, x'$ are independent random variables following $F$ and $y, y'$ are independent random variables following $G$. This formulation illustrates that the Cramer distance depends on the shift between $F$ and $G$ (first term) and the variability of both $F$ and $G$ (of which the two last expectations in above equation are a measure).
+
+
+Now assume that for each of the distributions $F$ and $G$ we only know $K$ quantiles at equally spaced levels $1/(K + 1), 2/(K + 1), \dots, K/(K + 1)$. Denote these quantiles by $q^F_1, \dots, q^F_K$ and $q^G_1, \dots, q^G_K$, respectively. It is well known that the CRPS can be approximated by an average of linear quantile scores (Laio and Tamea 2007, Gneiting and Raftery 2007):
+\begin{equation}
+ \text{CRPS}(F, y) \approx \frac{1}{K} \times \sum_{k = 1}^K 2\{\mathbf{1}(y \leq q^F_k)\} \times (q^F_k - y).\label{eq:linear_quantile_scores}
+\end{equation}
+This approximation is equivalent to the weighted interval score (WIS) which is in use for evaluation of quantile forecasts at the Forecast Hub, see Section 2.2 of Bracher et al (2021). This approximation can be generalized to the Cramer distance as
+\begin{equation}
+\text{CD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{i = 1}^{2K - 1} b_i(b_i + 1)(q_{i + 1} - q_i),\label{eq:approx1}
+\end{equation}
+where we use the following notation:
 
 * $\mathbf{q}$ is a vector of length $2K$. It is obtained by pooling the $q^F_k, q^G_k, k = 1, \dots, K$ and ordering them in increasing order (ties can be ordered in an arbitrary manner).
 * $\mathbf{a}$ is a vector of length $2K$ containing the value $1$ wherever $\mathbf{q}$ contains a quantile of $F$ and $-1$ wherever it contains a value of $G$.
 * $\mathbf{b}$ is a vector of length $2K$ containing the absolute cumulative sums of $\mathbf{a}$, i.e. $b_i = \left|\sum_{j = 1}^i a_j\right|$.
 
-Then a quantile-based approximation of the Cramer distance is given by
+For small $K$ it seems that the slightly different approximation
+\begin{equation}
+\text{CD}(F, G) \approx \frac{1}{(K + 1)^2} \times \sum_{i = 1}^{2K - 1} b_i^2(q_{i + 1} - q_i),\label{eq:approx2}
+\end{equation}
+actually works better. This just corresponds to the integrated squared difference between two step functions $F^*$ and $G^*$ with $F^*(x) = 0$ for $x < q^F_1$, $F^*(x) = k/(K + 1)$ for $q^F_k \leq x < q^F_k$, $F^*(x) = K/(K + 1)$ for $x \geq x^F_K$ and $G^*$ defined accordingly. We illustrate this in the figure below, with light blue areas representing the CD and approximated CD.
 
-$$
-\text{CD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{i = 1}^{2K - 1} b_i(b_i + 1)(q_{i + 1} - q_i).
-$$
+```{r, echo=FALSE, fig.height=5, fig.width=8}
+grid_x <- seq(from = 3, to = 15, by = 0.1)
 
-Actually I think that the approximation for small $K$ is better if we use
+mu_F <- 9
+sigma_F <- 1.8
+p_F <- pnorm(grid_x, mu_F, sigma_F)
 
-$$
-\text{CD}(F, G) \approx \frac{1}{(K + 1)^2} \times \sum_{i = 1}^{2K - 1} b_i^2(q_{i + 1} - q_i),
-$$
-which can be motivated much more directly, too (without the detour of the WIS approximation). It's just a bit further from the WIS-type approximation, but I don't see why that would be a problem.
+mu_G <- 10
+sigma_G <- 1
+p_G <- pnorm(grid_x, mu_G, sigma_G)
 
-# Long version
+y <- mu_G
+p_y <- as.numeric(grid_x > y)
+
+par(mfrow = c(2, 2))
+
+plot(grid_x, p_F, type = "l", xlab = "x", ylab = "CDF", col = "red")
+lines(grid_x, p_G, col = "blue")
+legend("topleft", c("F", "G"), col = c("red", "blue"), lty = 1)
+
+plot(grid_x, (p_F - p_G)^2, type = "l", xlab = "x", ylab = "(F(x) - G(x))^2", ylim = c(0, 0.3))
+polygon(grid_x, (p_F - p_G)^2, col = "lightblue")
+legend("topleft", "CD", col = "lightblue", pch = 15)
+
+detail_stepfun_cdf <- function(x, p, from, to, by = 0.1){
+  x_detailed <- seq(from = from, to = to, by = by)
+  p_detailed <- 0*x_detailed
+  for(i in seq_along(x)){
+    p_detailed[x_detailed >= x[i]] <- p[i]
+  }
+  return(list(x = x_detailed, p = p_detailed))
+}
+
+p_10 <- 1:9/10 # quantile levels
+q_F_10 <- qnorm(p_10, mu_F, sigma_F) # quantiles of F
+q_G_10 <- qnorm(p_10, mu_G, sigma_G) # quantiles of G
+
+q_F_10_detailed <- detail_stepfun_cdf(q_F_10, p_10, from = 3, to = 15)
+q_G_10_detailed <- detail_stepfun_cdf(q_G_10, p_10, from = 3, to = 15)
+p_10_detailed <- q_F_10_detailed$x
+
+plot(q_F_10_detailed$x, q_F_10_detailed$p, type = "s", xlab = "x", ylab = "CDF", col = "red")
+lines(q_F_10_detailed$x, q_G_10_detailed$p, type = "s", col = "blue")
+
+plot(q_F_10_detailed$x, (q_F_10_detailed$p - q_G_10_detailed$p)^2, type = "s", xlab = "x", 
+     ylab = "(F*(x) - G*(x))^2", ylim = c(0, 0.3))
+polygon(q_F_10_detailed$x, (q_F_10_detailed$p - q_G_10_detailed$p)^2, col = "lightblue")
+legend("topleft", "approx. CD", col = "lightblue", pch = 15)
+
+```
+
+## Examples
+
+As an example we apply the approximation to the distributions $F$ and $G$ already used in the figures above. They are given by $N(9, 1.8)$ for $F$ and $N(10, 1)$ for $G$.
+
+```{r}
+# define distributions:
+mu_F <- 9
+sigma_F <- 1.8
+
+mu_G <- 10
+sigma_G <- 1
+```
+
+We approximate the CD in four different ways:
+
+* Using direct numerical integration based on a fine grid of values for $x$.
+
+```{r, echo=TRUE}
+# simple numerical integration using grid:
+(cd_grid <- 0.1*sum((p_F - p_G)^2))
+```
+
+* Using sampling and the alternative expression \eqref{eq:formulation_expectations} of the CD from above:
+```{r}
+n <- 100000
+set.seed(123)
+x <- rnorm(n, mu_F, sigma_F)
+x_dash <- rnorm(n, mu_F, sigma_F)
+
+y <- rnorm(n, mu_G, sigma_G)
+y_dash <- rnorm(n, mu_G, sigma_G)
+
+(cd_sample <- (mean(abs(x - y)) - 0.5*(mean(abs(x - x_dash)) + mean(abs(y - y_dash)))))
+```
+* Using the first quantile-based approximation \eqref{eq:approx2} and various values of $K$:
+
+```{r, echo=TRUE}
+# q_F: vector containing the (1:K)/(K + 1) quantiles of F
+# q_G: vector containing the (1:K)/(K + 1) quantiles of G
+approx_cd1 <- function(q_F, q_G){
+  
+  # compute quantile levels from length of provided quantile vectors:
+  K <- length(q_F)
+  if(length(q_G) != K) stop("q_F and q_G need to be of the same length")
+  p <- (1:K)/(K + 1) # function assumes that the quantile levels are equally spaced
+  
+  # pool quantiles:
+  q0 <- c(q_F, q_G)
+  # vector of grouping variables, with 1 for values belonging to F, -1 for values 
+  # belonging to G
+  a0 <- c(rep(1, length(q_F)), rep(-1, length(q_G)))
+  
+  # re-order both vectors:
+  q <- q0[order(q0)]
+  a <- a0[order(q0)]
+  # and compute "how many quantiles ahead" F or G is at a given segment:
+  b <- abs(cumsum(a))
+  
+  # compute the lengths of segments defined by sorted quantiles:
+  diffs_q <- c(diff(q), 0) # zero necessary for indexing below, but we could put 
+  # anything (gets multiplied w zero)
+
+  # and approximate CD
+  cvm <- sum(diffs_q*b*(b + 1))/(K + 1)/(K)
+  
+  return(mean(cvm))
+}
+
+# values of K to check:
+values_K <- c(10, 20, 50, 100, 200, 500, 1000, 2000)
+
+# vector to store results:
+cd_approx1 <- numeric(length(values_K))
+
+# apply approximation for each_
+for(i in seq_along(values_K)){
+  p_temp <- (1:(values_K[i] - 1))/values_K[i] # quantile levels
+  q_F_temp <- qnorm(p_temp, mu_F, sigma_F) # quantiles of F
+  q_G_temp <- qnorm(p_temp, mu_G, sigma_G) # quantiles of G
+  cd_approx1[i] <- approx_cd1(q_F = q_F_temp, q_G = q_G_temp) # approximation
+}
+
+cd_approx1
+```
+
+* Using the second quantile-based approximation \eqref{eq:approx2} and various values of $K$:
+
+```{r, echo=TRUE}
+# q_F: vector containing the (1:K)/(K + 1) quantiles of F
+# q_G: vector containing the (1:K)/(K + 1) quantiles of G
+approx_cd2 <- function(q_F, q_G){
+  
+  # compute quantile levels from length of provided quantile vectors:
+  K <- length(q_F)
+  if(length(q_G) != K) stop("q_F and q_G need to be of the same length")
+  p <- (1:K)/(K + 1) # function assumes that the quantile levels are equally spaced
+  
+  # pool quantiles:
+  q0 <- c(q_F, q_G)
+  # vector of grouping variables, with 1 for values belonging to F, -1 for values 
+  # belonging to G
+  a0 <- c(rep(1, length(q_F)), rep(-1, length(q_G)))
+  
+  # re-order both vectors:
+  q <- q0[order(q0)]
+  a <- a0[order(q0)]
+  # and compute "how many quantiles ahead" F or G is at a given segment:
+  b <- abs(cumsum(a))
+  
+  # compute the lengths of segments defined by sorted quantiles:
+  diffs_q <- c(diff(q), 0) # zero necessary for indexing below, but we could put 
+  # anything (gets multiplied w zero)
+
+  # and approximate CD
+  cvm <- sum(diffs_q*b^2/K^2)
+  
+  return(mean(cvm))
+}
+
+# values of K to check:
+values_K <- c(10, 20, 50, 100, 200, 500, 1000, 2000)
+
+# vector to store results:
+cd_approx2 <- numeric(length(values_K))
+
+# apply approximation for each_
+for(i in seq_along(values_K)){
+  p_temp <- (1:(values_K[i] - 1))/values_K[i] # quantile levels
+  q_F_temp <- qnorm(p_temp, mu_F, sigma_F) # quantiles of F
+  q_G_temp <- qnorm(p_temp, mu_G, sigma_G) # quantiles of G
+  cd_approx2[i] <- approx_cd2(q_F = q_F_temp, q_G = q_G_temp) # approximation
+}
+
+cd_approx2
+```
+
+The below plot shows the results from the different computations.
+```{r}
+# plot:
+plot(values_K, cd_approx1, ylim = c(0, 0.5), xlab = "K", ylab = "CD",
+     pch = 1, type = "b", log = "x", col = "darkorange")
+lines(values_K, cd_approx2, type = "b", col = "darkgreen")
+abline(h = cd_grid, col = "black")
+abline(h = cd_sample, col = "purple", lty = 2)
+legend("topright", 
+       c("grid-based", "sample-based", "quantile approx. 1", "quantile approx. 2"),
+       pch = c(NA, NA, 1, 1), lty = c(1, 2, NA, NA),
+       col = c("black", "purple", "darkorange", "darkgreen"))
+```
+
+We check that in case $G$ is just a point mass at $y$, approximation \eqref{eq:approx1} indeed coincides with \eqref{eq:linear_quantile_scores}.
+
+```{r}
+# define G_star
+y <- 10
+q_G_star <- rep(y, 9)
+
+approx_cd1(q_F_10, q_G_star)# approximation 1
+mean(2*((y <= q_F_10) - p_10)*(q_F_10 - y)) # WIS defined via quantile scores
+```
+Also, we note that approximation \eqref{eq:approx1} is again closer to the grid-based direct evaluation of the integral.
+```{r}
+approx_cd2(q_F_10, q_G_star) # approximation 2
+# grid-based approximation:
+p_G_star <- as.numeric(grid_x >= y)
+0.1*sum((p_F - p_G_star)^2)
+```
+
+
+# Background thoughts (to be tidied up)
 
 ## Relationship between Cramer von Mises distance, CRPS and WIS
 
 Consider two predictive distributions $F$ and $G$ and an observed value $y$. In the following we use $F$ and $G$ also to denote the respective cumulative distribution functions (CDFs). The similarity of the definitions of the Cramer von Mises distance (CD)
 $$
-\text{CD}(F, G) = \int_{-\infty}^\infty(F(x) - G(x))^2 dx
+  \text{CD}(F, G) = \int_{-\infty}^\infty(F(x) - G(x))^2 dx
 $$
-and the CRPS
+  and the CRPS
 $$
-\text{CRPS}(F, y) = \int_{-\infty}^\infty(F(x) - \mathbf{1}(x \geq y))^2 dx
+  \text{CRPS}(F, y) = \int_{-\infty}^\infty(F(x) - \mathbf{1}(x \geq y))^2 dx
 $$
-is obvious. Indeed, we can interpret $\mathbf{1}(x \geq y)$ as the CDF of a random variable which always takes the value $y$. In a sense the CRPS is thus a special case of the CD. The two integrals are illustrated in the figure below.
+  is obvious. Indeed, we can interpret $\mathbf{1}(x \geq y)$ as the CDF of a random variable which always takes the value $y$. In a sense the CRPS is thus a special case of the CD. The two integrals are illustrated in the figure below.
 
 ```{r, echo=FALSE, fig.height=5, fig.width=8}
 grid_x <- seq(from = 3, to = 15, by = 0.1)
@@ -86,9 +318,9 @@ legend("topleft", "CRPS", col = "lightblue", pch = 15)
 
 Now assume $F$ is provided in a quantile format, with $K$ quantiles at equally spaced levels $1/(K + 1), 2/(K + 1), \dots, K/(K + 1)$. Denote these quantiles by $q^F_k, k = 1, ..., K$. The weighted interval score, or mean linear quantile score
 $$
-\text{WIS}(F, y) = \frac{2}{K} \times \sum_{k = 1}^K \{\mathbf{1}(y \leq q^F_k)\} \times (q^F_k - y) \approx \text{CRPS}(F, y)
+  \text{WIS}(F, y) = \frac{2}{K} \times \sum_{k = 1}^K \{\mathbf{1}(y \leq q^F_k)\} \times (q^F_k - y) \approx \text{CRPS}(F, y)
 $$
-is a commonly used quantile-based approximation of the CRPS. We start by getting an intuition of what this approximation does and why it works. For the following we use $K = 9$ for illustration.
+  is a commonly used quantile-based approximation of the CRPS. We start by getting an intuition of what this approximation does and why it works. For the following we use $K = 9$ for illustration.
 
 ```{r, echo=FALSE, fig.width=9, fig.height=9}
 p <- 1:9/10
@@ -101,16 +333,16 @@ for(i in 1:9){
   plot(q_F_plot, c(0, p, 0.9), xlab = "x", ylab = "CDF", type = "s", ylim = 0:1, col = "red", lwd = 2,
        main = paste("k =", i))
   abline(h = 1:10/10, col = "lightgrey", lty = 3); abline(v = q_F, col = "lightgrey", lty = 3)
-
+  
   lines(grid_x, p_y, col = "black", lwd = 2)
   rect(q_F[i], q_F[i] >= y, y, p[i], col = "lightblue", border = "lightblue", density = 12)
   legend("topleft", c("F", "1(x >= y)"), col = c("red", "black"), lty = 1)
-
+  
 }
 ```
 
 The above figure shows rectangles representing the $K = 9$ terms which are averaged to obtain the WIS. Note that in the above figure the black line for $\mathbf{1}(x \geq y)$ is a "full" CDF in the sense that it reaches the value one. This is a problem if we want to translate things to a more general setting with a step function with jumps at $K$ quantiles of a distribution $H$. In this case, the right horizontal part of the black line would need to be at $K/(K + 1) = 0.9$ instead of 1, as is the case for the red line. Fortunately we can just shift down everything that happens right of $y$ by $1/(K + 1) = 0.1$ and maintain a nice geometrical intuition (maybe even a nicer one):
-
+  
 ```{r, echo=FALSE, fig.width=9, fig.height=3}
 par(mfrow = c(1, 2))
 for(i in 8:9){
@@ -120,39 +352,39 @@ for(i in 8:9){
   lines(grid_x, 0.9*p_y, col = "black", lwd = 2)
   rect(q_F[i], (q_F[i] >= y) - 0.1, y, p[i] - 0.1, col = "lightblue", border = "lightblue", density = 12)
   legend("topleft", c("F", "H"), col = c("red", "black"), lty = 1)
-
+  
 }
 ```
 
 The WIS is given by the average of the size of the $K$ light blue boxes. To get a better understanding of what these represent we slice up the boxes vertically at the $K$ quantiles $q^F_1, \dots, q^F_K$ of $F$ and horizontally at the quantile levels $1/(K + 1), \dots K/(K + 1)$ (dotted lines in plots). Then obviously all of the resulting small boxes are the same height $1/(K + 1)$ and we have the following (specific to the example shown in the plot):
-
+  
 * One box of width $(q^F_2 - q^F_1)$ (the one from $k = 1$)
 * Three boxes of width $(q^F_3 - q^F_2)$ (one from $k = 1$ and two from $k = 2$)
 * Six boxes of width $(q^F_4 - q^F_3)$ (one from $k = 1$, two from $k = 2$ and three from $k = 3$)
 
 More generally, for segments where $|F(x) - H(x)| = k/(K + 1)$ we have $\sum_{i = 1}^k i = k(k + 1)/2$ boxes. This means that we can re-write the WIS as
 $$
-\text{WIS}(F, y) = \frac{2}{K} \times \sum_{k = 1}^K \underbrace{\mu(\{x: |F(X) - H(x)| = k/(K + 1)\})}_{\text{width of boxes}} \times \underbrace{\frac{1}{K + 1}}_{\text{height of boxes}} \times \underbrace{\frac{k(k + 1)}{2}}_{\text{number of boxes with respective width}},    \ \ \ \ \ \ \ \ \ \\       (1)
+  \text{WIS}(F, y) = \frac{2}{K} \times \sum_{k = 1}^K \underbrace{\mu(\{x: |F(X) - H(x)| = k/(K + 1)\})}_{\text{width of boxes}} \times \underbrace{\frac{1}{K + 1}}_{\text{height of boxes}} \times \underbrace{\frac{k(k + 1)}{2}}_{\text{number of boxes with respective width}},    \ \ \ \ \ \ \ \ \ \\       (1)
 $$
+  $$
+  = \sum_{k = 1}^K \mu(\{x: |F(x) - H(x)| = k/(K + 1)\})  \times \underbrace{\frac{k}{K} \times \frac{k + 1}{K + 1}}_{\approx (F(x) - H(x))^2}
 $$
-= \sum_{k = 1}^K \mu(\{x: |F(x) - H(x)| = k/(K + 1)\})  \times \underbrace{\frac{k}{K} \times \frac{k + 1}{K + 1}}_{\approx (F(x) - H(x))^2}
+  where $\mu(\{x: |F(x) - H(x)| = 1/k\})$ is the total length of the segments where $|F(x) - H(x)| = 1/k$. This makes it clear that for large $K$ the approximation
 $$
-where $\mu(\{x: |F(x) - H(x)| = 1/k\})$ is the total length of the segments where $|F(x) - H(x)| = 1/k$. This makes it clear that for large $K$ the approximation
+  \text{WIS}(F, y) \approx \int_{-\infty}^\infty (F(x) - H(x))^2 dx
 $$
-\text{WIS}(F, y) \approx \int_{-\infty}^\infty (F(x) - H(x))^2 dx
+  indeed holds with 
 $$
-indeed holds with 
+  H(X) = \begin{cases} 0 \text{ if } x < y\\ K/(K + 1) \text{ if } x \geq y. \end{cases}
 $$
-H(X) = \begin{cases} 0 \text{ if } x < y\\ K/(K + 1) \text{ if } x \geq y. \end{cases}
-$$
-
+  
 ## Extension to comparison of two predictive distributions
-
-Formulation (1) and its motivation are sufficiently general that they can also apply it to two ``actual'' CDFs which both have more than just one jump. Indeed, we can (1) it to approximate the Cramer von Mises distance of any pair of distributions $F$ and $G$:
+  
+  Formulation (1) and its motivation are sufficiently general that they can also apply it to two ``actual'' CDFs which both have more than just one jump. Indeed, we can (1) it to approximate the Cramer von Mises distance of any pair of distributions $F$ and $G$:
+  $$
+  \text{CD}(F, G) \approx \sum_{k = 1}^K \mu(\{x: |F(x) - H(x)| = k/(K + 1)\})  \times \frac{k}{K} \times \frac{k + 1}{K + 1}
 $$
-\text{CD}(F, G) \approx \sum_{k = 1}^K \mu(\{x: |F(x) - H(x)| = k/(K + 1)\})  \times \frac{k}{K} \times \frac{k + 1}{K + 1}
-$$
-This expression could be evaluated directly (or at least approximated very closely) using a grid for the $x$ values. However, a simpler way to compute this exists (writing down why it works is tedious and I need to clarify some details, but I've checked in numerous examples and it does work). Denote by $\mathbf{q}$ a vector of length $2K$ containing all quantiles $q^F_1, \dots, q_F^K$ of $F$ and $q^G_1, \dots, q_G^K$ in increasing order; and denote by $\mathbf{a}$ a vector of length $2K$ with $1$ wherever the corresponding entry of $\mathbf{q}$ comes from the quantiles of $F$ and $-1$ if it comes from the quantiles of $G$. Then the above approximation can also be written as:
+  This expression could be evaluated directly (or at least approximated very closely) using a grid for the $x$ values. However, a simpler way to compute this exists (writing down why it works is tedious and I need to clarify some details, but I've checked in numerous examples and it does work). Denote by $\mathbf{q}$ a vector of length $2K$ containing all quantiles $q^F_1, \dots, q_F^K$ of $F$ and $q^G_1, \dots, q_G^K$ in increasing order; and denote by $\mathbf{a}$ a vector of length $2K$ with $1$ wherever the corresponding entry of $\mathbf{q}$ comes from the quantiles of $F$ and $-1$ if it comes from the quantiles of $G$. Then the above approximation can also be written as:
 
 $$
 \text{CD}(F, G) \approx \frac{1}{K(K + 1)} \times \sum_{k = 1}^{2K - 1} b_k(b_k + 1)(q_{i + 1} - q_i),
@@ -168,86 +400,35 @@ Some advantages of this measure:
 * Similarly to the WIS it can be decomposed into various components (e.g. according to whether $F(X)$ or $G(x)$ predicts larger values or whether one of them is more dispersed).
 * If $G$ is just an additively shifted version of $F$ the CD corresponds to the (absolute value of the) shift. This means that the measure can again be interpreted on the natural scale of the data as a sort of generalized absolute difference.
 
-\newpage
 
-## Example
+<!---
+# Useful links
 
-This is a simple R function to compute the approximation of the CD:
-
-```{r}
-# q_F: vector containing the (1:K)/(K + 1) quantiles of F
-# q_G: vector containing the (1:K)/(K + 1) quantiles of G
-approx_cd <- function(q_F, q_G){
-  
-  # compute quantile levels from length of provided quantile vectors:
-  K <- length(q_F)
-  if(length(q_G) != K) stop("q_F and q_G need to be of the same length")
-  p <- (1:K)/(K + 1) # function assumes that the quantile levels are equally spaced
-  
-  # pool quantiles:
-  q0 <- c(q_F, q_G)
-  # vector of grouping variables, with 1 for values belonging to F, -1 for values 
-  # belonging to G
-  a0 <- c(rep(1, length(q_F)), rep(-1, length(q_G)))
-  
-  # re-order both vectors:
-  q <- q0[order(q0)]
-  a <- a0[order(q0)]
-  # and compute "how many quantiles ahead" F or G is at a given segment:
-  b <- abs(cumsum(a))
-  
-  # compute the lengths of segments defined by sorted quantiles:
-  diffs_q <- c(diff(q), 0) # zero necessary for indexing below, but we could put 
-  # anything (gets multiplied w zero)
-
-  # and approximate CD
-  cvm <- sum(diffs_q*b*(b + 1))/(K + 1)/(K)
-  
-  return(mean(cvm))
-}
-```
-
-
-As an example we apply the approximation to the distributions $F$ and $G$ already used in the figures above. They are given by $N(9, 1.8)$ for $F$ and $N(10, 1)$ for $G$. The figure below shows the value of the approximation with different values for $K$, with the "exact" value obtained by numerical integration via a very fine grid (dashed line).
-
-```{r, echo=TRUE}
-
-# define distributions:
-mu_F <- 14
-sigma_F <- 1.8
-
-mu_G <- 10
-sigma_G <- 2.5
-
-# simple numerical integration using grid:
-grid_x <- seq(from = -10, to = 25, by = 0.1)
-p_F <- pnorm(grid_x, mu_F, sigma_F)
-p_G <- pnorm(grid_x, mu_G, sigma_G)
-exact_cd <- 0.1*sum((p_F - p_G)^2)
-
-# values of K to check:
-values_K <- c(10, 20, 50, 100, 200, 500, 1000, 2000)
-
-# vector to store results:
-values_approx_cd <- numeric(length(values_K))
-
-# apply approximation for each_
-for(i in seq_along(values_K)){
-  p_temp <- (1:(values_K[i] - 1))/values_K[i] # quantile levels
-  q_F_temp <- qnorm(p_temp, mu_F, sigma_F) # quantiles of F
-  q_G_temp <- qnorm(p_temp, mu_G, sigma_G) # quantiles of G
-  values_approx_cd[i] <- approx_cd(q_F = q_F_temp, q_G = q_G_temp) # approximation
+# * \url{http://pages.stat.wisc.edu/~wahba/stat860public/pdf4/Energy/EnergyDistance10.1002-wics.1375.pdf}
+# * \url{https://en.wikipedia.org/wiki/Energy_distance]}
+```{r, fig.height=9, fig.width=5}
+detail_stepfun_cdf <- function(x, p, from, to, by = 0.1){
+  x_detailed <- seq(from = from, to = to, by = by)
+  p_detailed <- 0*x_detailed
+  for(i in seq_along(x)){
+    p_detailed[x_detailed >= x[i]] <- p[i]
+  }
+  return(list(x = x_detailed, p = p_detailed))
 }
 
-# plot:
-plot(values_K, values_approx_cd, ylim = c(0, 5), xlab = "K", ylab = "CD",
-     pch = 15, type = "b", log = "x")
-abline(h = exact_cd, lty = 2)
-legend("topright", c("approximation", "result from numerical integration"), 
-       pch = c(15, NA), lty = c(1, 2))
+p_10 <- 1:9/10 # quantile levels
+q_F_10 <- qnorm(p_10, mu_F, sigma_F) # quantiles of F
+q_G_10 <- qnorm(p_10, mu_G, sigma_G) # quantiles of G
+
+q_F_10_detailed <- detail_stepfun_cdf(q_F_10, p_10, from = 1, to = 20)
+q_G_10_detailed <- detail_stepfun_cdf(q_G_10, p_10, from = 1, to = 20)
+p_10_detailed <- q_F_10_detailed$x
+
+par(mfrow = c(2, 1))
+plot(q_F_10_detailed$x, q_F_10_detailed$p, type = "s", xlab = "x", ylab = "CDF")
+lines(q_F_10_detailed$x, q_G_10_detailed$p, type = "s", col = "red")
+
+plot(q_F_10_detailed$x, abs(q_F_10_detailed$p - q_G_10_detailed$p)*10, type = "s", xlab = "x", ylab = "b")
+abline(v = c(q_F_10, q_G_10), lty = 2)
 ```
-
-## Useful links
-
-* \url{http://pages.stat.wisc.edu/~wahba/stat860public/pdf4/Energy/EnergyDistance10.1002-wics.1375.pdf}
-* \url{https://en.wikipedia.org/wiki/Energy_distance]}
+-->
