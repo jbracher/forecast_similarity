@@ -20,9 +20,9 @@ where $F(x)$ and $G(x)$ denote the cumulative distribution functions. The Cramer
 $$
 \text{CRPS}(F, y) = \int_{-\infty}^\infty(F(x) - \mathbf{1}(x \geq y))^2 dx,
 $$
-where $y$ denotes the observed value. Indeed, it is a generalization of the CRPS in the sense that it simplifies to the CRPS if one out of $F$ and $G$ is a one-point distribution. The Cramer distance is commonly used to measure the similarity of forecast distributions (see Richardson et al 2020 for a recent application).  To evaluate it using samples form the distributions $F$ and $G$ one can use the alternative formulation
+where $y$ denotes the observed value. Indeed, it is a generalization of the CRPS in the sense that it simplifies to the CRPS if one out of $F$ and $G$ is a one-point distribution. The Cramer distance is commonly used to measure the similarity of forecast distributions (see Richardson et al 2020 for a recent application).  To evaluate it using samples from the distributions $F$ and $G$ one can use the alternative formulation
 \begin{equation}
-\text{CD}(F, G) = \mathbb{E}_{F, G}|x - y| - 0.5 \left[\mathbb{E}_F|x - x'| + \mathbb{E}_G|y - y'| \right], \label{eq:formulation_expectations}
+\text{CD}(F, G) = \mathbb{E}_{F, G}|X - Y| - 0.5 \left[\mathbb{E}_F|X - X'| + \mathbb{E}_G|Y - X'| \right], \label{eq:formulation_expectations}
 \end{equation}
 where $x, x'$ are independent random variables following $F$ and $y, y'$ are independent random variables following $G$. This formulation illustrates that the Cramer distance depends on the shift between $F$ and $G$ (first term) and the variability of both $F$ and $G$ (of which the two last expectations in above equation are a measure).
 
@@ -117,6 +117,9 @@ We approximate the CD in four different ways:
 
 ```{r, echo=TRUE}
 # simple numerical integration using grid:
+grid_x <- seq(from = 3, to = 15, by = 0.1)
+p_F <- pnorm(grid_x, mu_F, sigma_F)
+p_G <- pnorm(grid_x, mu_G, sigma_G)
 (cd_grid <- 0.1*sum((p_F - p_G)^2))
 ```
 
@@ -132,7 +135,7 @@ y_dash <- rnorm(n, mu_G, sigma_G)
 
 (cd_sample <- (mean(abs(x - y)) - 0.5*(mean(abs(x - x_dash)) + mean(abs(y - y_dash)))))
 ```
-* Using the first quantile-based approximation \eqref{eq:approx2} and various values of $K$:
+* Using the first quantile-based approximation \eqref{eq:approx1} and various values of $K$:
 
 ```{r, echo=TRUE}
 # q_F: vector containing the (1:K)/(K + 1) quantiles of F
@@ -212,7 +215,7 @@ approx_cd2 <- function(q_F, q_G){
   # anything (gets multiplied w zero)
   
   # and approximate CD
-  cvm <- sum(diffs_q*b^2/K^2)
+  cvm <- sum(diffs_q*b^2/(K + 1)^2)
   
   return(mean(cvm))
 }
@@ -248,7 +251,58 @@ legend("topright",
        col = c("black", "purple", "darkorange", "darkgreen"))
 ```
 
-We check that in case $G$ is just a point mass at $y$, approximation \eqref{eq:approx1} indeed coincides with \eqref{eq:linear_quantile_scores}.
+While approximation \eqref{eq:approx2} works better than approximation \eqref{eq:approx1} in this example, this is not always the case:
+
+```{r}
+# define another distribution:
+mu_H <- 10
+sigma_H <- 0.1
+
+p_H <- pnorm(grid_x, mu_H, sigma_H)
+(cd_grid <- 0.1*sum((p_F - p_H)^2))
+
+# approximation 1
+# vector to store results:
+cd_approx1 <- numeric(length(values_K))
+
+# apply approximation for each_
+for(i in seq_along(values_K)){
+  p_temp <- (1:(values_K[i]))/(values_K[i] + 1) # quantile levels
+  q_F_temp <- qnorm(p_temp, mu_F, sigma_F) # quantiles of F
+  q_H_temp <- qnorm(p_temp, mu_H, sigma_H) # quantiles of H
+  cd_approx1[i] <- approx_cd1(q_F = q_F_temp, q_G = q_H_temp) # approximation
+}
+
+cd_approx1
+
+# approximation 2
+# vector to store results:
+cd_approx2 <- numeric(length(values_K))
+
+# apply approximation for each_
+for(i in seq_along(values_K)){
+  p_temp <- (1:(values_K[i] - 1))/values_K[i] # quantile levels
+  q_F_temp <- qnorm(p_temp, mu_F, sigma_F) # quantiles of F
+  q_H_temp <- qnorm(p_temp, mu_H, sigma_H) # quantiles of G
+  cd_approx2[i] <- approx_cd2(q_F = q_F_temp, q_G = q_H_temp) # approximation
+}
+
+cd_approx2
+```
+
+```{r}
+# plot:
+plot(values_K, cd_approx1, ylim = c(0, 1.5), xlab = "K", ylab = "CD",
+     pch = 1, type = "b", log = "x", col = "darkorange")
+lines(values_K, cd_approx2, type = "b", col = "darkgreen")
+abline(h = cd_grid, col = "black")
+legend("topright", 
+       c("grid-based", "sample-based", "quantile approx. 1", "quantile approx. 2"),
+       pch = c(NA, NA, 1, 1), lty = c(1, 2, NA, NA),
+       col = c("black", "purple", "darkorange", "darkgreen"))
+```
+
+So there is no approximation which is inherently better than the other. The advantage of approximation \eqref{eq:approx1} is that it generalizes the WIS and reduces to it if $G$ is just a point mass at $y$. We check via an example that approximation \eqref{eq:approx1} then indeed coincides with \eqref{eq:linear_quantile_scores}:
 
 ```{r}
 # define G_star
@@ -258,19 +312,46 @@ q_G_star <- rep(y, 9)
 approx_cd1(q_F_10, q_G_star)# approximation 1
 mean(2*((y <= q_F_10) - p_10)*(q_F_10 - y)) # WIS defined via quantile scores
 ```
-Also, we note that approximation \eqref{eq:approx1} is again closer to the grid-based direct evaluation of the integral.
-```{r}
-approx_cd2(q_F_10, q_G_star) # approximation 2
-# grid-based approximation:
-p_G_star <- as.numeric(grid_x >= y)
-0.1*sum((p_F - p_G_star)^2)
-```
 
-## Preliminary suggestion for a decomposition
+<!--
+## Cramer distance and expected CRPS
+
+The Cramer distance of distributions $F$ and $G$ be expressed as
+$$
+\text{CD}(F, G) = \mathbb{E}_{F, G}|X - Y| - 0.5 \left[\mathbb{E}_F|X - X'| + \mathbb{E}_G|Y - Y'| \right],
+$$
+where $X, X'$ are independent copies from $F$ and $Y, Y'$ are independent copies from $G$. The CRPS of a predictive distribution $F$ and observation $x$ can be expressed as
+$$
+\text{CRPS}(F, x) = \mathbb{E}_F|X - x| - 0.5 \mathbb{E}_F|X - X'|.
+$$
+Now assume $G$ is the true data-generating distribution. The expected CRPS of the forecast $F$ is then given by
+\begin{align*}
+\mathbb{E}_G(\text{CRPS}(F, Y)) & = \mathbb{E}_{G}(\mathbb{E}_F|X - Y|) - \underbrace{0.5 \mathbb{E}|X - X'|}_{\text{independent of Y}}\\
+& \stackrel{\text{sloppy}}{=} \mathbb{E}_{F, G}|X - Y| - 0.5 \mathbb{E}_F|X - X'|.
+\end{align*}
+For $F = G$, i.e. a forecast distribution which is identical to the true data-generating process, this simplifies to
+$$
+\mathbb{E}_G(\text{CRPS}(G, Y))= \mathbb{E}_{F}|Y - Y'| - 0.5 \mathbb{E}_G|Y - Y'| = 0.5 \mathbb{E}_G|Y - Y'|
+$$
+This implies that we can write the Cramer distance as the difference between the expected CRPS of $F$ under $G$ and the expected CRPS of $G$ under $G$:
+
+$$
+\text{CD}(F, G) = \underbrace{\mathbb{E}_{F, G}|X - Y| - 0.5 \mathbb{E}_F|X - X'|}_{\mathbb{E}_G(\text{CRPS(F, Y)})} - \underbrace{0.5 \mathbb{E}_G|Y - Y'|}_{\mathbb{E}_G(\text{CRPS(G, Y)})}.
+$$
+It thus tells us how much worse our forecast $F$ is than a ``perfect forecast'' given by the true data-generating process.
+
+This must be known, we'll just have to find a reference.
+-->
+
+
+## Preliminary suggestion for a decomposition (there is a separate document on this now, kept only to be able to check back)
+
+**Can probably be generalized to "all pairs of intervals" not just symmetric ones. Should have nicer properties.**
+
 
 The first quantile-based approximation \eqref{eq:approx2} can also be written as
 $$
-\text{CD}(F, G) \approx \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K \mathbf{1}\{(i - j) \times (q^F_i - q^G_j) < 0\} \times \left| q^F_i - q^G_j\right|,
+\text{CD}(F, G) \approx \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K \mathbf{1}\{(i - j) \times (q^F_i - q^G_j) \leq 0\} \times \left| q^F_i - q^G_j\right|,
 $$
 which sums up penalties for $q^F_i \geq q^G_j$ despite $i \leq j$ (or the other way around). For instance, if the 70\% quantile of $F$ is 100 and the 80\% quantile of $G$ is 60 this would result in a contribution of $40/K/(K + 1)$ to the approximated Cramer distance. I haven't written this up properly, but this allows for a nice decomposition into terms representing shifts ($F$ has larger/smaller quantiles than $G$) and differences in dispersion ($F$ is more/less dispersed than $G$). The decomposition is based on comparisons of cental prediction intervals $[q_i^F, q^F_{K + 1 - i}]$ (or $[q_{K + 1 - i}^F, q^F_{i}]$, if $i > (K + 1)/2$) and $[q_j^G, q^G_{K + 1 - j}]$ (or $[q^G_{K + 1 - j}, q^G_{j}]$), which potentially have different nominal coverage levels. I have not yet found a concise notation to describe this, but the intuition is the following:
 
@@ -309,6 +390,15 @@ text(15, 6, expression(paste("[ ", q[j]^G, ", ", q[K + 1 - j]^G, " ] or [ ", q[K
 * A component ``G more dispersed than F'' is defined accordingly.
 
 Note that in a sense this prioritizes shifts over differences in dispersion, and differences in dispersion are only counted if the CDFs cross. E.g., if $q^F_i \geq q^G_i$ for all $i$, all differences will be assigned to ``$F$ larger than $G$''. This is the case even if one of the two distributions shows much larger dispersion than the other.
+
+Interval comparison: Comparing $[l_F, u_F]$, $[l_G, u_G]$, where the former has lower nominal coverage.
+
+\begin{align}
+% d(F, G) & = \max(0, u_F - u_G) + \max(0, l_G - l_F) + \max(0, l_F - u_G) \\
+d(F, G) & = \underbrace{I(l_F < l_G < u_G < u_F)\times(u_F - l_F - u_G + l_G)}_{F \text{ more dispersed}} \\
+& + \underbrace{I(u_F < l_G) \times (2l_G - u_F - l_F) + I(l_F < l_G < u_F < u_G) \times (l_G - l_F)}_{G \text{ larger}} \\
+& + \underbrace{I(u_G < l_F) \times (u_F + l_F - 2u_G) + I(l_G < l_F < u_G < u_F) \times (u_F - u_G)}_{F \text{ larger}}
+\end{align}
 
 I wrote an R function which does the decomposition and a few examples.
 
