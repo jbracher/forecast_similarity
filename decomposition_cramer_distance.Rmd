@@ -1,6 +1,9 @@
 ---
 title: "A decomposition of the Cramer distance"
 output: pdf_document
+header-includes: 
+  - \usepackage{tikz}
+  - \usepackage{pgfplots}
 ---
 
 ```{r setup, include=FALSE}
@@ -19,30 +22,126 @@ $$
 $$
 where $y$ denotes the observed value. Indeed, it is a generalization of the CRPS as it simplifies to the CRPS if one out of $F$ and $G$ is a one-point distribution. The Cramer distance is commonly used to measure the similarity of forecast distributions (see Richardson et al 2020 for a recent application).
 
-Now assume that for each of the distributions $F$ and $G$ we only know $K$ quantiles at equally spaced levels $1/(K + 1), 2/(K + 1), \dots, K/(K + 1)$. Denote these quantiles by $q^F_1, \dots, q^F_K$ and $q^G_1, \dots, q^G_K$, respectively. It is well known that the CRPS can be approximated by an average of linear quantile scores (Laio and Tamea 2007, Gneiting and Raftery 2007):
+Now assume that for each of the distributions $F$ and $G$ we only know $K$ quantiles at equally spaced levels $\tau_1 = 1/(K + 1), \tau_2 = 2/(K + 1), \dots, \tau_K = K/(K + 1)$. Denote these quantiles by $q^F_1 \leq q^F_1 \leq \dots \leq q^F_K$ and $q^G_1 \leq q^G_2 \leq \dots \leq q^G_K$, respectively. It is well known that the CRPS can be approximated by an average of linear quantile scores (Laio and Tamea 2007, Gneiting and Raftery 2007):
 \begin{equation}
-\text{CRPS}(F, y) \approx \frac{1}{K} \times \sum_{k = 1}^K 2\{\mathbf{1}(y \leq q^F_k)\} \times (q^F_k - y).\label{eq:linear_quantile_scores}
+\text{CRPS}(F, y) \approx \frac{1}{K} \times \sum_{k = 1}^K 2\{\mathbf{1}(y \leq q^F_k) - k/(K + 1)\} \times (q^F_k - y).\label{eq:linear_quantile_scores}
 \end{equation}
 This approximation is equivalent to the weighted interval score (WIS) which is in use for evaluation of quantile forecasts at the Forecast Hub, see Section 2.2 of Bracher et al (2021). This approximation can be generalized to the Cramer distance as
 \begin{equation}
-\text{CD}(F, G) \approx \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K \mathbf{1}\{(i - j) \times (q^F_i - q^G_j) \leq 0\} \times \left| q^F_i - q^G_j\right|,\label{eq:approx_cd}
+\text{CD}(F, G) \approx \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K 2 \times \mathbf{1}\{(i \leq j \land q^F_i > q^G_j) \lor (i \geq j \land q^F_i < q^G_j)\} \times \left| q^F_i - q^G_j\right|. \label{eq:approx_cd}
 \end{equation}
-This can be seen as a sum of penalties for \textit{incompatibility} of predictive quantiles. Whenever the predictive quantiles $q_i^F$ and $q_j^G$ are incompatible in the sense that they imply $F$ and $G$ are different distributions (e.g. because $q_F^i > q_G^j$ despite $i < j$ or $q_F^i \neq q_G^j$ despite $i = j$), a penalty $\left| q^F_i - q^G_j\right|$ is added to the sum. This corresponds to the shift which would be necessary to make $q_F^i$ and $q_G^j$ compatible.
+This can be seen as a sum of penalties for \textit{incompatibility} of predictive quantiles. Whenever the predictive quantiles $q_i^F$ and $q_j^G$ are incompatible in the sense that they imply $F$ and $G$ are different distributions (because $q_F^i > q_G^j$ despite $i \leq j$ or vice versa), a penalty $\left| q^F_i - q^G_j\right|$ is added.
 
-## A divergence measure for central prediction intervals with potentially different nominal coverages
+### Motivation of the approximation
 
-Consider two central prediction intervals $[l^F, u^F]$ and $[l^G, u^G]$ with nominal levels $\alpha^F$ and $\alpha^G$, respectively (meaning that $l^F$ is the $(1 - \alpha^F)/2$ quantile of $F$ etc). We can define an \textit{interval divergence} measure by comparing the two pairs of predictive quantiles and summing up the respective incompatibility penalties as in \eqref{eq:approx_cd}. Adapting notation to the interval formulation and structuring the sum slightly differently, this can be written as:
+We start by splitting up the sum from \eqref{eq:approx_cd} into
+\begin{align}
+\text{CD}(F, G) & \approx \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K 2 \times \mathbf{1}\{i \leq j \land q^F_i > q^G_j\} \times \left( q^F_i - q^G_j\right) \label{eq:two_sums} \\
+& \ \ \ \ + \ \ \ \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K 2 \times \mathbf{1}\{i \geq j \land q^F_i < q^G_j\} \times \left( q^G_j - q^F_i\right) \nonumber
+\end{align}
+We now denote by $q_1 \leq q_2 \leq \dots \leq q_{2n}$ the pooled set of quantiles (across $F$ and $G$). Further, we denote by $r^F_1, \dots r^F_n$ and $r^G_1, \dots r^G_n$ the ranks of the members of $q^F_1, \dots, q^F_n$ and $q^G_1, \dots, q^G_n$, respectively, within the pooled set of quantiles, i.e.
+\begin{equation}
+q^F_i = q_{r^F_i}.\label{eq:substitution}
+\end{equation}
+Note that ranks are oriented such that larger ranks correspond to larger values. We now focus on the first of the two double sums from equation \eqref{eq:two_sums}, which using \eqref{eq:substitution} becomes
+\begin{align}
+% & \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K 2 \times \mathbf{1}\{i \leq j \land q^F_i > q^G_j\} \times \left( q^F_i - q^G_j\right) \\
+\frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K 2 \times \mathbf{1}\{i \leq j \land r^F_i > r^G_j\} \times \left( q_{r^F_i} - q_{r^G_j}\right). \label{eq:to_continue}
+\end{align}
+Now denote by 
+$$
+\delta_l = q_{l + 1} - q_l
+$$
+the increments in the pooled set of quantiles. We can then use a telescope sum and continue \eqref{eq:to_continue} as
+\begin{align}
+% & \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K 2 \times \mathbf{1}\{i \leq j \land r^F_i > r^G_j\} \times \left( q_{r^F_i} - q_{r^G_j}\right)\\
+= & \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K 2 \times \mathbf{1}\{i \leq j \land r^F_i > r^G_j\} \times \sum_{l = r^G_j}^{r^F_{i - 1}} \delta_l\\
+= & \frac{1}{K(K + 1)} \sum_{l = 1}^{K} \delta_l \times 2 \times \sum_{i = 1}^K\sum_{j = 1}^K \mathbf{1}\{i \leq j \land r^G_j \leq l < r^F_i\}. \label{eq:second_sum2}\\
+\end{align}
+The double sum over the indicator function counts how many pairs of $(i, j)$ exist for a given $l$ such that $r^F_i$, but not $r^G_j$ exceeds $l$, despite $i \leq j$. To determine this number consider
+\begin{align}
+a^F_l & = \sum_{i = 1}^n \mathbf{1}(r^F_i \leq l)\\
+a^G_l & = \sum_{i = 1}^n \mathbf{1}(r^G_i \leq l),
+\end{align}
+i.e., the numbers of ranks falling below $l$ among the quantiles of $F$ and $G$. If 
+$$
+a_l^F - a_l^G = b_l \Leftrightarrow a_l^G = a_l^F - b_l
+$$
+we have
+\begin{align}
+r^F_{1} \leq \dots \leq r^F_{a_l^F} \leq l <  r^F_{a_l^F + 1} \leq \dots \leq r^F_n,\\
+r^G_{1} \leq \dots \leq r^G_{a_l^F - b_l} \leq l <  r^F_{a_l^F - b_l + 1} \leq \dots \leq r^G_n.
+\end{align}
+The case $(i \leq j \land r^G_j \leq l < r^F_i)$ thus arises for
+\begin{itemize}
+\item[1.] the tuples $(r^F_{a^F_l}, r^G_{a^F_l}), (r^F_{a^F_l}, r^G_{a^F_l - 1}), \dots, (r^F_{a^F_l}, r^G_{a^F_l - (b_l - 1)})$, i.e. $b_l$ times for $r^F_{a^F_l}$.
+\item[2.] the tuples $(r^F_{a^F_l - 1}, r^G_{a^F_l - 1}), (r^F_{a^F_l}, r^G_{a^F_l - 1}), \dots, (r^F_{a^F_l}, r^G_{a^F_l - (b_l - 1)})$, i.e. $b_l - 1$ times for $r^F_{a^F_l - 1}$.
+\item[$\vdots$]
+\item[$b_l$.] the tuple $(r^F_{a^F_l - b_l}, r^G_{a^F_l - b_l})$, i.e. once for $r^F_{a^F_l - b_l}$.
+\end{itemize}
+This results in a total of $b_l + (b_l -1) + \dots + 1 = b_l(b_l + 1)/2$ tuples, and we can re-write expression \eqref{eq:second_sum2} as
+$$
+= \frac{1}{K(K + 1)} \sum_{l = 1}^{K} \delta_l \times b_l(b_l + 1) \times \mathbf{1}(b_l > 0).
+$$
+The same argument can be made for the second double sum in \eqref{eq:two_sums}, and bringing the two back together again the overall approximation from \eqref{eq:two_sums} simplifies to
+\begin{equation}
+\text{CD}(F, G) \approx \frac{1}{K(K + 1)} \sum_{l = 1}^{K} \delta_l \times b_l(b_l + 1). \label{eq:rectangles}
+\end{equation}
+For large $K$ we obviously have
+\begin{equation}
+F(q_l) - G(q_l) = \underbrace{\frac{a^F_l}{K} - \frac{a^G_l}{K}}_{= b_l/K} \approx \underbrace{\frac{a^F_l + 1}{K + 1} - \frac{a^G_l + 1}{K + 1}}_{(b_l + 1)/(K + 1)}, \label{eq:approx_CDF}
+\end{equation}
+meaning that \eqref{eq:rectangles} is a simple (left-sided) Riemann sum approximation of the Cramer divergence.
 
+There are more direct ways of approximating the Cramer divergence using quantiles, e.g., using $b_l^2$ rather than $b_l \times (b_l + 1)$ in \eqref{eq:rectangles}). The motivation for expression \eqref{eq:approx_cd} is that if $G$ is a point mass, the approximated Cramer divergence simplifies to the approximation \eqref{eq:linear_quantile_scores} already in use for the CRPS in the context of forecast evaluation. To see this consider equation \eqref{eq:two_sums}. With $q^G_1 = \dots = q^G_K = y$ it becomes
 \begin{align*}
-\text{ID}([l^F, u^F], [l^G, u^G], \alpha^F, \alpha^G) = & \ \mathbf{1}(\alpha^F \leq \alpha^G)\times\left\{\max(l^G - l^F, 0) + \max(u^F - u^G, 0)\right\} \ +\\
-& \ \mathbf{1}(\alpha^F \geq \alpha^G) \times \left\{\max(l^F - l^G, 0) + \max(u^G - u^F, 0)\right\} \ +\\
-& \max(l^F - u^G, 0) \ +\\
-& \max(l^G - u^F, 0)
+\text{CD}(F, G) & \approx \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K 2\times \mathbf{1}(i \leq j \land q^F_i > y) \times \left( q^F_i - y\right) \\
+& \ \ \ \ + \ \ \ \frac{1}{K(K + 1)}\sum_{i = 1}^K\sum_{j = 1}^K 2 \times \mathbf{1}(i \geq j \land q^F_i < y) \times \left(y - q^F_i\right)\\
+& = \frac{1}{K(K + 1)} \left\{\sum_{i = 1}^K 2\times \mathbf{1}(q^F_i > y) \times i \times \left( q^F_i - y\right) \ \ + \ \ \sum_{i = 1}^K 2 \times \mathbf{1}(q^F_i < y) \times (K + 1 - i) \times \left(y - q^F_i\right)\right\}\\
+& = \frac{1}{K(K + 1)} \sum_{i = 1}^K 2\times \{\mathbf{1}(q^F_i > y) \times (K + 1) - i\} \times (q^F_i - y) \\
+& = \frac{1}{K} \sum_{i = 1}^K 2\times \{\mathbf{1}(q^F_i > y) - i/(K + 1)\} \times (q^F_i - y).
+\end{align*}
+This is precisely the approximation of the CRPS from equation \eqref{eq:linear_quantile_scores}.
+
+## Establishing a decomposition for the approximated Cramer distance
+
+We now introduce a decomposition of the approximated Cramer distance into the four following components:
+\begin{itemize}
+\item larger dispersion of $F$ relative to $G$,
+\item larger dispersion of $G$ relative to $F$,
+\item upward shift of $F$ relative to $G$,
+\item upward shift of $G$ relative to $F$.
+\end{itemize}
+This decomposition is inspired by the decomposition of the interval score which translates to the weighted interval score (WIS). To extend it to the approximated Cramer distance, we need to express it in terms of symmetric prediction intervals, similar to the definition of the WIS via the interval score. In the following we introduce such a representation and decomposition.
+
+### A divergence measure for central prediction intervals with potentially different nominal coverages
+
+Consider two central prediction intervals $[l^F, u^F]$ and $[l^G, u^G]$ with nominal levels $\alpha^F, \alpha^G \in [0, 1)$, respectively; $l^F$ is thus the $(1 - \alpha^F)/2$ quantile of $F$, $u^F$ is the $(1 + \alpha^F)/2$ quantile of $F$ etc. Note that we include the boundary case $\alpha = 0$, even though it has somewhat peculiar behaviour. We can define an \textit{interval divergence} measure by comparing the two pairs of predictive quantiles and summing up the four resulting incompatibility penalties as in \eqref{eq:approx_cd}. Writing this out completely gives the somewhat unwieldy expression
+\begin{align*}
+\text{ID}([l^F, u^F], [l^G, u^G], \alpha^F, \alpha^G) = & \ \ \ \mathbf{1}\big\{\{(1 - \alpha^F)/2 \leq (1 - \alpha^G)/2 \land l^F > l^G\big\} \\
+& \ \ \ \ \ \ \ \ \ \ \ \ \ \ \lor \{(1 - \alpha^F)/2 \geq (1 - \alpha^G)/2 \land l^F < l^G\}\} \times |l^F - l^G|\\
+& \ \ \ \ \ \ \ \ \ \ + \ \mathbf{1}\big\{\{(1 - \alpha^F)/2 \leq (1 + \alpha^G)/2 \land l^F > u^G\big\} \\
+& \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \lor \{(1 - \alpha^F)/2 \geq (1 + \alpha^G)/2 \land l^F < u^G\}\} \times |l^F - u^G|\\
+& \ \ \ \ \ \ \ \ \ \ + \ \mathbf{1}\big\{\{(1 + \alpha^F)/2 \leq (1 - \alpha^G)/2 \land u^F > l^G\big\} \\
+& \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \lor \{(1 + \alpha^F)/2 \geq (1 - \alpha^G)/2 \land u^F < l^G\}\} \times |u^F - l^G|\\
+& \ \ \ \ \ \ \ \ \ \ + \ \mathbf{1}\big\{\{(1 + \alpha^F)/2 \leq (1 + \alpha^G)/2 \land u^F > u^G\big\} \\
+& \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \lor \{(1 + \alpha^F)/2 \geq (1 + \alpha^G)/2 \land u^F < u^G\}\} \times |u^F - u^G|.
+\end{align*}
+By construction we know that if $\alpha^F > 0$ or $\alpha^G > 0$ we have $1 - \alpha^F < 1 + \alpha^G$ and $1 - \alpha^G < 1 + \alpha^F$ while $(1 - \alpha^F)/2 \leq (1 - \alpha^G)/2 \Leftrightarrow \alpha_F \geq \alpha^G \Leftrightarrow (1 + \alpha^F)/2 \geq (1 + \alpha^G)/2$ etc. In this case the above can thus be simplified considerably to
+\begin{align*}
+\text{ID}([l^F, u^F], [l^G, u^G], \alpha^F, \alpha^G) = & \ \mathbf{1}(\alpha^F \leq \alpha^G)\times\left\{\max(l^G - l^F, 0) + \max(u^F - u^G, 0)\right\} \\
+& \ \ \ \ \ \ \ \ + \ \mathbf{1}(\alpha^F \geq \alpha^G) \times \left\{\max(l^F - l^G, 0) + \max(u^G - u^F, 0)\right\} \\
+& \ \ \ \ \ \ \ \ + \max(l^F - u^G, 0) \ +\\
+& \ \ \ \ \ \ \ \ + \max(l^G - u^F, 0).
 \end{align*}
 
-The first row adds penalties for the case where $[l^F, u^F]$ should be nested in $[l^G, u^G]$, but at least one of its ends is more extreme than the respective end of $[l^G, u^G]$. The second row covers the converse case. The last two rows add penalties if the lower end of one interval exceeds the upper end of the other, i.e. the intervals do not overlap.
+Here, the first row adds penalties for the case where $[l^F, u^F]$ should be nested in $[l^G, u^G]$, but at least one of its ends is more extreme than the respective end of $[l^G, u^G]$. The second row covers the converse case. The last two rows add penalties if the lower end of one interval exceeds the upper end of the other, i.e. the intervals do not overlap. This can be seen as a (scaled version of a) generalization of the interval score, but writing out the exact relationship is a bit tedious.
 
-This can be seen as a (scaled version of a) generalization of the interval score, but writing out the exact relationship is a bit tedious.
+If $\alpha^F = \alpha^G = 0$ we have
+$$
+\text{ID}([l^F, u^F], [l^G, u^G], 0, 0) = 4 \times |m^F - m^G|
+$$
+where $m^F = l^F = u^F$ and $m^G = l^G = u^G$ are the predictive medians of $F$ and $G$, respectively.
 
 We now define four auxiliary terms with an intuitive interpretation which add up to the interval divergence:
 
@@ -56,46 +155,115 @@ is the sum of penalties resulting from $F$ being more dispersed than $G$. It is 
 $$
 D_G = \mathbf{1}(\alpha^G \leq \alpha^G)\times\max\{(u^G - l^G) - (u^F - l^F), 0\}
 $$
-measures the converse, i.e. overdispersion of $G$ relative to $F$.
+measures the converse, i.e. overdispersion of $G$ relative to $F$. Note that at most one of $D_F$ and $D_G$ can be positive. If $\alpha^F = \alpha^G = 0$ we always have $D^F = D^G = 0$.
 \item The term
 $$
-S^F = \max\{\mathbf{1}(\alpha^G \leq \alpha^F) \times \max(l^F - l^G, 0) + \mathbf{1}(\alpha^F \leq \alpha^G) \times \max(u^F - u^G, 0) + \max(l^F - u^G, 0) - D_F - D_G, 0\}
+S^F = \mathbf{1}\left\{l^F + u^F > l^G + u^G \right\} \times \left\{\text{ID}([l^F, u^F], [l^G, u^G], \alpha^F, \alpha^G) - D^F - D^G\right\}
 $$
-sums over penalties for values in $\{l^F, u^F\}$ exceeding those from $\{l^G, u^G\}$ where they should not (only counting penalties not already covered in $D_F$ or $D_G$). It thus represents an \textit{upward shift} of $F$ relative to $G$.
+% $$
+% S^F = \max\{\mathbf{1}(\alpha^G \leq \alpha^F) \times \max(l^F - l^G, 0) + \mathbf{1}(\alpha^F \leq \alpha^G) \times \max(u^F - u^G, 0) + \max(l^F - u^G, 0) - D_F - D_G, 0\}
+% $$
+represents an \textit{upward shift} of $F$ relative to $G$. It is zero unless the center of $[l^F + u^F]$ exceeds that of $[l^G + u^G]$, in which case it absorbs the remaining penalties after accounting for differences in dispersion via $D^F$ and $D^G$.
 \item The term
 $$
-S^G = \max\{\mathbf{1}(\alpha^F \leq \alpha^G) \times \max(l^G - l^F, 0) + \mathbf{1}(\alpha^G \leq \alpha^F) \times \max(u^G - u^F, 0) + \max(l^G - u^F, 0) - D_G - D_F, 0\}
+S^G = \mathbf{1}\left\{l^F + u^F < l^G + u^G\right\} \times \left\{\text{ID}([l^F, u^F], [l^G, u^G], \alpha^F, \alpha^G) - D^F - D^G\right\}
 $$
-accordingly represents an \textit{upward shift} of $G$ relative to $F$.
+% $$
+% S^G = \max\{\mathbf{1}(\alpha^F \leq \alpha^G) \times \max(l^G - l^F, 0) + \mathbf{1}(\alpha^G \leq \alpha^F) \times \max(u^G - u^F, 0) + \max(l^G - u^F, 0) - D_G - D_F, 0\}
+% $$
+accordingly represents an \textit{upward shift} of $G$ relative to $F$. Again note that at most one out of $S^F$ and $S^G$ can be positive.
 \end{itemize}
 
-It can be shown that
+It is easy to see that
 $$
-\text{ID}([l^F, u^F], [l^G, u^G], \alpha^F, \alpha^G) = D_F + D_G + S^F + S^G
+\text{ID}([l^F, u^F], [l^G, u^G], \alpha^F, \alpha^G) = D^F + D^G + S^F + S^G.
 $$
-Intuitively the interval divergence measures by how much we need to move the quantiles of the interval with lower nominal coverage so it fits into the one with larger nominal coverage.
+Intuitively the interval divergence measures by how much we need to move the quantiles of the interval with lower nominal coverage so it fits into the one with larger nominal coverage. The different components correspond to different types of moves we can make to achieve this We illustrate this using an example: Assume $[l^F, u^F]$ has lower nominal coverage than $[l^G, u^G]$, but is wider while $l^F > u^G$ (i.e.,\ the intervals are non-overlapping):
 
-The following improvised drawing illustrates the intuition behind these terms:
+\bigskip
 
-![](handdrawn.jpg)
+\begin{tikzpicture}[x=1cm,y=0.28cm]
+\draw[-] (1, 1) -- (4, 1);
+\draw[-] (1, 0.7) -- (1, 1.3);
+\draw[black,fill=white](1,0) node {$l^G$};
+\draw[-] (4, 0.7) -- (4, 1.3);
+\draw[black,fill=white](4,0) node {$u^G$};
 
-## Approximating the Cramer distance using interval divergences
+\draw[-] (5, 4) -- (11, 4);
+\draw[-] (5, 3.7) -- (5, 4.3);
+\draw[black,fill=white](5,3) node {$l^F$};
+\draw[-] (11, 3.7) -- (11, 4.3);
+\draw[black,fill=white](11,3) node {$u^F$};
+\end{tikzpicture}
+
+To fit $[l^F, u^F]$ into $[l^G, u^G]$ we first need to shorten it by $D^F = (u^F - l^F) - (u^G - l^G)$. We perform this shortening at the end which is furthest from $[l^G, u^G]$:
+
+\begin{tikzpicture}[x=1cm,y=0.28cm]
+\draw[-] (1, 1) -- (4, 1);
+\draw[-] (1, 0.7) -- (1, 1.3);
+\draw[black,fill=white](1,0) node {$l^G$};
+\draw[-] (4, 0.7) -- (4, 1.3);
+\draw[black,fill=white](4,0) node {$u^G$};
+
+\draw[-, dotted] (5, 4) -- (11, 4);
+\draw[-] (5, 4) -- (8, 4);
+\draw[-] (5, 3.7) -- (5, 4.3);
+\draw[-] (8, 3.7) -- (8, 4.3);
+\draw[black,fill=white](5,3) node {$l^F$};
+\draw[-] (11, 3.7) -- (11, 4.3);
+\draw[black,fill=white](11,3) node {$u^F$};
+
+\draw[->] (11, 4.0) arc (-155:-35:-1.7) ;
+
+\end{tikzpicture}
+Then we shift both ends of the resulting interval just onto the upper end $u^G$ of the interval with larger nominal coverage:
+\begin{tikzpicture}[x=1cm,y=0.28cm]
+\draw[-] (1, 1) -- (4, 1);
+\draw[-] (1, 0.7) -- (1, 1.3);
+\draw[black,fill=white](1,0) node {$l^G$};
+\draw[-] (4, 0.7) -- (4, 1.3);
+\draw[black,fill=white](4,0) node {$u^G$};
+
+\draw[-, dotted] (5, 4) -- (8, 4);
+\draw[-] (5, 3.7) -- (5, 4.3);
+\draw[-] (8, 3.7) -- (8, 4.3);
+\draw[black,fill=white](5,3) node {$l^F$};
+
+\draw[->] (8, 4.0) arc (-155:-35:-2.3) ;
+\draw[->] (5, 4.0) arc (-155:-35:-.55) ;
+
+\draw[-] (4, 3.7) -- (4, 4.3);
+
+\end{tikzpicture}
+The sum of the two necessary shifts (of the upper and lower end), which in this case simplifies to $S^F = 2l^F - u^G -l^G$ can be interpreted as the upward shift of $[l^F, u^F]$ with respect to $l^G, u^G]$.
+
+### Approximating the Cramer distance using interval divergences
 
 Assuming $K$ is even, the $K$ equally spaced predictive quantiles of each distribution can seen as $L = K/2$ central prediction intervals with coverage levels $\alpha_i = 2i/(L + 1), i = 1, \dots, L$. Similarly to the definition of the WIS, the approximation \eqref{eq:approx_cd} can also be expressed in terms of these intervals as
 $$
-\text{CD}(F, G) \approx \frac{1}{2L(2L + 1)}\sum_{k = 1}^L\sum_{m = 1}^L \text{ID}([l^F_k, u^F_k], [l^G_m, u^G_m], \alpha_k^F, \alpha_m^G).
+\text{CD}(F, G) \approx \frac{1}{2L(2L + 1)}\sum_{k = 1}^L\sum_{m = 1}^L 2 \times \text{ID}([l^F_k, u^F_k], [l^G_m, u^G_m], \alpha_k^F, \alpha_m^G).
 $$
-This implies a decomposition of the Cramer distance into the four interpretable components defined for the interval divergence in the previous section. If $G$ is a one-point distribution, the CD reduces to the WIS and the proposed decomposition reduces to the well-known decomposition of the WIS into dispersion, overprediction and underprediction components.
+This is easily seen as the involved double sum runs over the same discrepancy penalties as the one in equation \eqref{eq:approx_cd}, with four of them covered in each of the computed interval divergences.
 
-Note that in practice we usually have an uneven rather than even number $K$ of predictive quantiles. In this case the median needs to be treated separately (comparisons of the ``0% prediction interval'' need to be weighted down with a factor of 2; this is the same little quirk as the one identified by Ryan and Evan for the WIS a few months ago).
+If $K$ is uneven, we get $L = (2K + 1)/2$ central prediction intervals for each distribution, with coverage levels $\alpha_i = 2(i - 1)/(L + 1), i = 1, \dots, L$. This means that the innermost prediction interval is just a single point at the predictive median. To avoid penalizing incompatibilities involving one of the medians more than once we then need to adjust the above to
+\begin{equation}
+\text{CD}(F, G) \approx \frac{1}{(2L - 0.5)(2L + 0.5)}\sum_{k = 1}^L\sum_{m = 1}^L w_{km}\text{ID}([l^F_k, u^F_k], [l^G_m, u^G_m], \alpha_k^F, \alpha_m^G).
+\end{equation}
+with
+$$
+w_{km} = \begin{cases} 1/4 & \text{ if } k = 0 = m \\
+1/2 & \text{ if } k = 0 \neq m \text{ or } k = 0 \neq m\\
+1 & \text{else}
+\end{cases}.
+$$
 
-The decomposition has the following properties:
+This representation implies a decomposition of the Cramer distance into the four interpretable components defined for the interval divergence in the previous section. Each component is just defined as the (appropriately weighted) average of the respective components at the different coverage levels. If $G$ is a one-point distribution, the CD reduces to the WIS and the proposed decomposition reduces to the well-known decomposition of the WIS into dispersion, overprediction and underprediction components. The decomposition has the following further properties:
 
 \begin{itemize}
-\item Additive shifts of the two distributions only affect the shift components, not the dispersion components.
+\item Additive shifts of the two distributions affect the shift components, but not the dispersion components.
 \item Consequently, if $G$ and $G$ are identical up to an additive shift, both dispersion components will be 0.
-\item If $F$ and $G$ are both symmetric and have the same median, the both shift components will be 0.
-\item I think that in general it is possible that both shift components or both dispersion components are greater than 0, which leads to a somewhat strange interpretation. But this should only concern constructed examples.
+\item If $F$ and $G$ are both symmetric and have the same median, both shift components will be 0.
+\item It is possible that both shift components or both dispersion components are greater than 0, which leads to a somewhat strange interpretation. This corresponds to CDFs which cross more than once.
 \end{itemize}
 
 ## Implementation in R
@@ -103,12 +271,37 @@ The decomposition has the following properties:
 A Shiny app to play around with the Cramer distance and its decomposition is available at https://jobrac.shinyapps.io/app_cramer_distance/
 
 ```{r}
-# Somewhat patchy functions to compute the approximate CD and its decomposition:
+# Simple implementation without using the interval representation 
+# and computing decomposition
+approx_cd0 <- function(q_F, q_G){
+  K <- length(q_F)
+  matr_q_F <- matrix(q_F, ncol = K, nrow = K)
+  matr_q_G <- matrix(q_G, ncol = K, nrow = K, byrow = TRUE)
+  matr_indices <- matrix(1:K, ncol = K, nrow = K)
+  mismatches <- sign(matr_q_F - matr_q_G) != sign(matr_indices - t(matr_indices))
+  abs_diff <- abs(matr_q_F - matr_q_G)
+  cd <- sum(2*mismatches*abs_diff)/K/(K + 1)
+  cd
+}
 
 # helper function to evaluate interval divergence:
 interval_comparison <- function(l_F, u_F, alpha_F, l_G, u_G, alpha_G){
-  # if both PIs have same level
-  if(alpha_F == alpha_G){
+  
+  if((alpha_F == 0 & (l_F != u_F)) |
+     (alpha_G == 0 & (l_G != u_G))){
+    stop("Upper and lower bounds of 0% prediction intervals need to be identical")
+     }
+
+  # if both PIs are at level 0%
+  if(alpha_F == 0 & alpha_G == 0){
+    F_disp <- 0
+    G_disp <- 0
+    F_larger <- 4*max(l_F - l_G, 0)
+    G_larger <- 4*max(l_G - l_F, 0)
+  }
+    
+  # if both PIs have same level, but not 0%
+  if(alpha_F == alpha_G & alpha_F != 0){
     F_disp <- max((u_F - l_F) - (u_G - l_G), 0)
     G_disp <- max((u_G - l_G) - (u_F - l_F), 0)
     F_larger <- max(max(u_F - u_G, 0) + max(l_F - l_G, 0) + 
@@ -144,11 +337,12 @@ interval_comparison <- function(l_F, u_F, alpha_F, l_G, u_G, alpha_G){
 approx_cd <- function(q_F, q_G){
   # compute quantile levels from length of provided quantile vectors:
   K <- length(q_F)
+  K_uneven <- K %% 2 == 1
   if(length(q_G) != K) stop("q_F and q_G need to be of the same length")
   p <- (1:K)/(K + 1) # function assumes that the quantile levels are equally spaced
-  coverages <- 2*(1:(K/2))/(K + 1)
   
-  n_intervals <- K/2  
+  n_intervals <- ceiling(K/2) # to handle uneven number of quantiles
+
   # matrices to store interval divergences and components:
   matrix_interval_comparisons <-
     matrix_F_larger <- matrix_G_larger <-
@@ -171,24 +365,43 @@ approx_cd <- function(q_F, q_G){
     }
   }
   
-  cd <- 2*sum(matrix_interval_comparisons)/K/(K + 1)
-  F_larger <- 2*sum(matrix_F_larger)/K/(K + 1)
-  G_larger <- 2*sum(matrix_G_larger)/K/(K + 1)
-  F_disp <- 2*sum(matrix_F_disp)/K/(K + 1)
-  G_disp <- 2*sum(matrix_G_disp)/K/(K + 1)
+  weights <- matrix(1, ncol = n_intervals, nrow = n_intervals)
+  if(K_uneven){
+    weights[n_intervals, ] <- weights[, n_intervals] <- 0.5
+    weights[n_intervals, n_intervals] <- 1/4
+  }
+  
+  normalization <- K*(K + 1)
+  cd <- 2*sum(matrix_interval_comparisons*weights)/normalization
+  F_larger <- 2*sum(matrix_F_larger*weights)/normalization
+  G_larger <- 2*sum(matrix_G_larger*weights)/normalization
+  F_disp <- 2*sum(matrix_F_disp*weights)/normalization
+  G_disp <- 2*sum(matrix_G_disp*weights)/normalization
   
   return(list(cd = cd, 
               F_larger = F_larger, G_larger = G_larger,
               F_disp = F_disp, G_disp = G_disp))
 }
 
-# Example:
+# Examples to check agreement:
 
+# with even K:
 K <- 10
 p <- (1:K)/(K + 1) # quantile levels
 
 q_F <- qnorm(p, 12, 5) # quantiles of F
 q_G <- qnorm(p, 9, 4) #
 
+approx_cd0(q_F, q_G)
+approx_cd(q_F, q_G)
+
+# with uneven K:
+K <- 9
+p <- (1:K)/(K + 1) # quantile levels
+
+q_F <- qnorm(p, 12, 5) # quantiles of F
+q_G <- qnorm(p, 9, 4) #
+
+approx_cd0(q_F, q_G)
 approx_cd(q_F, q_G)
 ```
