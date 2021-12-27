@@ -251,8 +251,8 @@ If $K$ is uneven, we get $L = (2K + 1)/2$ central prediction intervals for each 
 \end{equation}
 with
 $$
-w_{km} = \begin{cases} 1/4 & \text{ if } k = 0 = m \\
-1/2 & \text{ if } k = 0 \neq m \text{ or } k = 0 \neq m\\
+w_{km} = \begin{cases} 1/4 & \text{ if } k = 1 = m \\
+1/2 & \text{ if } k \neq 1 = m \text{ or } k = 1 \neq m\\
 1 & \text{else}
 \end{cases}.
 $$
